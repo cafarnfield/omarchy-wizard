@@ -88,6 +88,7 @@ Item {
   property real landX: 0
   property real nextLandEvent: 45
   property bool catInBed: false        // she is asleep on him
+  property real sleepFor: 0            // how long he intends to sleep once in
   property real waterY: 0              // the line he is sailing along
   property real waterTargetY: 0        // where on the lake he is heading
   property int blockCount: 0           // consecutive refusals to climb
@@ -413,16 +414,21 @@ Item {
   }
 
   function enterSleep() {
-    mood = "sleep"
+    sleepFor = Brain.between(10, 22)
     moodClock = 0
     animClock = 0
-    moodFor = Brain.between(10, 22)
-    // She joins him if she is near enough to bother getting up.
-    catInBed = hasCat && !overWater && Math.abs(catX - fx) < spriteW * 1.6
-    if (catInBed && Math.random() < 0.6)
-      say(Brain.pick(Brain.BEDTIME, ""), 2.8)
-    else
+
+    // Dozing off in the boat is just dozing off. Ashore he goes to the
+    // trouble of unrolling the thing first.
+    if (afloat || overWater) {
+      mood = "sleep"
+      moodFor = sleepFor
       say("Z Z Z", Math.min(moodFor, 8))
+      return
+    }
+
+    mood = "makebed"
+    moodFor = 2.6
   }
 
   function poke() {
@@ -1176,6 +1182,16 @@ Item {
       const oars = catAboard ? Sprites.ROW_CAT : Sprites.ROW
       return oars[Math.floor(animClock / 0.28) % oars.length]
     }
+    case "makebed": {
+      const laying = Math.min(0.999, moodClock / Math.max(0.1, moodFor))
+      return Sprites.MAKEBED[Math.floor(laying * Sprites.MAKEBED.length)]
+    }
+    case "packbed": {
+      // The same four beats played backwards: he rolls it up and stands.
+      const packing = Math.min(0.999, moodClock / Math.max(0.1, moodFor))
+      return Sprites.MAKEBED[Sprites.MAKEBED.length - 1
+        - Math.floor(packing * Sprites.MAKEBED.length)]
+    }
     case "sleep": {
       if (afloat)
         return Sprites.SLEEP[Math.floor(animClock / 0.9) % Sprites.SLEEP.length]
@@ -1414,11 +1430,35 @@ Item {
           enterWalk(0)
       }
       break
+    case "makebed":
+      if (moodClock >= moodFor) {
+        // Decided as he lies down, not when he decided to: that gives her the
+        // couple of seconds it takes him to unroll it to come and join him.
+        catInBed = hasCat && !overWater && Math.abs(catX - fx) < spriteW * 1.6
+        mood = "sleep"
+        moodClock = 0
+        animClock = 0
+        moodFor = sleepFor
+        say(catInBed ? Brain.pick(Brain.BEDTIME, "") : "Z Z Z",
+            catInBed ? 2.8 : Math.min(sleepFor, 8))
+      }
+      break
     case "sleep":
       if (moodClock >= moodFor) {
         catInBed = false
-        enterIdle(Brain.between(0.6, 1.4))
+        if (afloat || overWater) {
+          enterIdle(Brain.between(0.6, 1.4))
+        } else {
+          mood = "packbed"
+          moodClock = 0
+          animClock = 0
+          moodFor = 1.8
+        }
       }
+      break
+    case "packbed":
+      if (moodClock >= moodFor)
+        enterIdle(Brain.between(0.6, 1.4))
       break
     case "cast":
       if (moodClock >= moodFor)
