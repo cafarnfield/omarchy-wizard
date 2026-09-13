@@ -215,7 +215,7 @@ def boat(oar=0, bob=0, eyes='open', cat=False, rider=True, rod=False):
     return g
 
 
-def wizard(bob=0, eyes='open', hem=0, staffdy=0, armUp=False, orb='on'):
+def wizard(bob=0, eyes='open', hem=0, staffdy=0, armUp=False, orb='on', perch=False):
     g = blank()
     dy = bob
     sy = staffdy
@@ -270,6 +270,27 @@ def wizard(bob=0, eyes='open', hem=0, staffdy=0, armUp=False, orb='on'):
         rect(g, 20, dy + 21, 22, dy + 22, 'S')
         rect(g, 20, dy + 22, 22, dy + 22, 'N')
 
+    if perch:
+        # Soot up on the brim of his hat, leaning against the cone. The
+        # shoulder is the obvious place, but on a 26-wide grid he fills it,
+        # and putting her there covered one of his eyes.
+        curl = [
+            ".X.....X.",
+            "XXXXXXXXX",
+            "XXoXXXXXX",
+            ".XXXXXXX.",
+        ]
+        for j, row in enumerate(curl):
+            for i, ch in enumerate(row):
+                if ch == '.':
+                    continue
+                px(g, 17 + i, dy + 5 + j, 'X' if ch == 'X' else 'o')
+        for i in range(9):
+            for j in range(2):
+                if g[dy + 5 + j][17 + i] == 'X':
+                    g[dy + 5 + j][17 + i] = 'x'
+                    break
+
     outline(g)
     return g
 
@@ -288,6 +309,10 @@ FRAMES = [
     ('sleep2', dict(bob=1, hem=2, eyes='closed', staffdy=2)),
     ('held1',  dict(hem=2, armUp=True)),
     ('held2',  dict(bob=1, hem=3, armUp=True)),
+    ('perch1', dict(perch=True)),
+    ('perch2', dict(bob=1, hem=1, staffdy=1, perch=True)),
+    ('perch3', dict(hem=2, perch=True)),
+    ('perch4', dict(bob=1, hem=3, staffdy=1, perch=True)),
 ]
 
 DEATH_FRAMES = [
@@ -622,6 +647,104 @@ CATS = {
         "..XX.......XX..",
         "..xx.......xx..",
         "...............",
+    ],
+    "cat_crouch": [
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        ".X.............",
+        ".XX.......XXXX.",
+        "..XXXXXXXXXoXX.",
+        "..XXXXXXXXXXXX.",
+        "...X.X...X.X...",
+        "...............",
+        "...............",
+        "...............",
+    ],
+    "cat_wiggle": [
+        "...............",
+        "...............",
+        "...............",
+        "..X............",
+        "..XX...........",
+        "...X......XXXX.",
+        "..XXXXXXXXXoXX.",
+        "..XXXXXXXXXXXX.",
+        "..X.XX...X.X...",
+        "...............",
+        "...............",
+        "...............",
+    ],
+    "cat_pounce": [
+        "...............",
+        "...............",
+        ".X.............",
+        ".XX.......XXXX.",
+        "..XXXXXXXXXoXXX",
+        ".XXXXXXXXXXXXX.",
+        "X..XX.....XX..X",
+        "X..............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+    ],
+    "cat_arch": [
+        "...........X...",
+        "....XXXX...X...",
+        "..XXXXXXXX.XX..",
+        ".XXXXXXXXXXXX..",
+        ".XX......XXXX..",
+        "XXX.......XX...",
+        "XoX........X...",
+        "XXX............",
+        ".X.X.......X...",
+        ".X.X.......X...",
+        "...............",
+        "...............",
+    ],
+    "cat_rub": [
+        "...............",
+        "........X...X..",
+        ".......XXX.XXX.",
+        ".......XXXXXXX.",
+        ".......XoXXXoX.",
+        "......XXXXXXXX.",
+        ".....XXXXXXX...",
+        "...XXXXXXXXX...",
+        "..XXXXXXXXXX.X.",
+        "..XXXXXXXXXX.XX",
+        "..XXXXXXXXXXX.X",
+        "..XXXXXXXXXX...",
+    ],
+    "cat_knead": [
+        "...............",
+        ".....X...X.....",
+        "....XXX.XXX....",
+        "....XXXXXXX....",
+        "....XoXXXoX....",
+        "....XXXXXXX....",
+        ".....XXXXX.....",
+        "....XXXXXXX....",
+        "...XXXXXXXX.X..",
+        "...XXXXXXXX.XX.",
+        "..XXXXXXXXXX.X.",
+        "..X.XX.XX.XX...",
+    ],
+    "cat_paw": [
+        "...............",
+        ".....X...X.....",
+        "....XXX.XXX....",
+        "....XXXXXXX....",
+        "....XoXXXoX....",
+        "....XXXXXXX....",
+        "..X..XXXXX.....",
+        "..XXXXXXXXX....",
+        "...XXXXXXXX.X..",
+        "...XXXXXXXX.XX.",
+        "..XXXXXXXXXX.X.",
+        "..XXXXXXXXXX...",
     ],
     "cat_curl": [
         "...............",
@@ -1056,6 +1179,9 @@ def emit_js(path):
     out.append("var CAT_WALK = [\"cat_walk1\", \"cat_walk2\"]")
     out.append("var CAT_SIT = [\"cat_sit\", \"cat_sit2\"]")
     out.append("var CAT_GROOM = [\"cat_groom1\", \"cat_groom2\"]")
+    out.append("var CAT_POUNCE = [\"cat_crouch\", \"cat_wiggle\", \"cat_crouch\", \"cat_wiggle\", \"cat_pounce\"]")
+    out.append("var CAT_KNEAD = [\"cat_knead\", \"cat_sit\"]")
+    out.append("var PERCH = [\"perch1\", \"perch2\", \"perch3\", \"perch4\"]")
     out.append("")
     out.append("var FRAME_PAD = {")
     pads = []

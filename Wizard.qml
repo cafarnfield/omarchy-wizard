@@ -128,13 +128,24 @@ Item {
   property real catBlinkUntil: 0
   property real catNextBlink: 3
   property bool catTailUp: false
+  property bool catWasWalking: false
   property real catNextFlick: 1.5
+  property string catTask: ""          // greet | follow | gift | underfoot | perch | crystal
+  property real catTaskClock: 0
+  property real catTaskFor: 0
+  property real catTaskX: 0
+  property real nextCatTask: 35
+  property bool catGift: false         // she is away fetching something
+  property string dropped: ""          // an item she has knocked loose
+  property real droppedX: 0
+  property real droppedUntil: 0
 
   // Her size follows her own footing, not his. Sharing his `unit` meant she
   // shrank into the distance while sitting on the bank, just because he had
   // rowed out. She never leaves dry land, and land is always full size.
   // True while she is drawn as part of another sprite rather than her own.
-  readonly property bool catOnHim: catInBed && mood === "sleep" && !afloat
+  readonly property bool catOnHim: (catInBed && mood === "sleep" && !afloat)
+    || catTask === "perch"
 
   readonly property real catUnit: baseUnit
   readonly property real catW: Sprites.CW * catUnit
@@ -608,8 +619,20 @@ Item {
       return
     }
     eventClock += dt
-    if (waterEvent === "tentacle" && eventClock < 0.4)
-      splash(2)
+    if (waterEvent === "tentacle") {
+      if (eventClock < 0.4)
+        splash(2)
+      // Soot, watching from the bank, does not care for it at all. Only on
+      // the way up: re-arming this every tick reset her timer every tick, and
+      // she stayed startled for the rest of her natural life.
+      if (eventClock < 0.5 && catIdle !== "arch" && hasCat && !catOnHim
+          && catTask === "" && Math.abs(catX - eventX) < spriteW * 4) {
+        catIdle = "arch"
+        catIdleClock = 0
+        catIdleFor = Brain.between(2.5, 4.5)
+        catTurn(eventX > catX ? 1 : -1)
+      }
+    }
     if (eventClock >= eventFor)
       endWaterEvent()
   }
@@ -650,6 +673,10 @@ Item {
       say(Brain.pick(Brain.FIRESIDE, ""), 3.2)
       enterIdle(landFor)
       turnAround(landX > centerX ? 1 : -1)
+      // She claims the warm spot, obviously.
+      if (hasCat && !catOnHim && catTask === "")
+        startCatTask("follow", landFor * 0.9,
+                     landX + (landX > centerX ? spriteW * 0.45 : -spriteW * 0.45) - catW / 2)
     } else if (hasCat) {
       landEvent = "attention"
       landFor = Brain.between(5, 8)
@@ -906,6 +933,10 @@ Item {
       frame: currentFrame,
       cat: catMood,
       catIdle: catIdle,
+      catTask: catTask,
+      catIdleClock: Math.round(catIdleClock*10)/10,
+      catIdleFor: Math.round(catIdleFor*10)/10,
+      dropped: dropped,
       catFrame: catFrame,
       catX: Math.round(catX),
       catFacing: catFacing,
@@ -936,6 +967,23 @@ Item {
       return "cat_curl"
     case "stretch":
       return "cat_stretch"
+    case "knead":
+      return Sprites.CAT_KNEAD[Math.floor(catIdleClock / 0.3) % Sprites.CAT_KNEAD.length]
+    case "rub":
+      return Math.floor(catIdleClock / 0.45) % 2 ? "cat_rub" : "cat_sit2"
+    case "paw":
+      return Math.floor(catIdleClock / 0.4) % 2 ? "cat_paw" : "cat_sit"
+    case "arch":
+      return "cat_arch"
+    case "pounce": {
+      const seq = Sprites.CAT_POUNCE
+      const t = Math.min(0.999, catIdleClock / Math.max(0.1, catIdleFor))
+      return seq[Math.floor(t * seq.length)]
+    }
+    case "stare":
+      // Deliberately still. A cat staring at nothing for an uncomfortably
+      // long time is the joke; a flicking tail would ruin it.
+      return clock < catBlinkUntil ? "cat_blink" : "cat_sit"
     case "groom":
       return Sprites.CAT_GROOM[Math.floor(catIdleClock / 0.34) % Sprites.CAT_GROOM.length]
     default:
@@ -964,28 +1012,54 @@ Item {
     // Weighted by time, not by roll: loafing is a single still frame, so a
     // long nap undoes the point of animating her at all. Sitting has the
     // flicking tail, grooming has two frames -- keep her in those.
-    const roll = Math.random()
-    if (roll < 0.50) {
-      catIdle = "sit"
-      catIdleFor = Brain.between(3, 7)
-    } else if (roll < 0.80) {
-      catIdle = "groom"
-      catIdleFor = Brain.between(2.5, 5.5)
-    } else {
+    if (catIdle === "knead") {
       catIdle = "loaf"
       catIdleFor = Brain.between(5, 11)
+      return
+    }
+
+    const roll = Math.random()
+    if (roll < 0.30) {
+      catIdle = "sit"
+      catIdleFor = Brain.between(3, 7)
+    } else if (roll < 0.50) {
+      catIdle = "groom"
+      catIdleFor = Brain.between(2.5, 5.5)
+    } else if (roll < 0.62) {
+      catIdle = "pounce"
+      catIdleFor = 2.4
+    } else if (roll < 0.72) {
+      catIdle = "stare"
+      catIdleFor = Brain.between(5, 14)
+    } else if (roll < 0.80 && nearWater(catX + catW / 2)) {
+      catIdle = "paw"
+      catIdleFor = Brain.between(3, 6)
+    } else if (roll < 0.90 && !afloat && Math.abs(catX - fx) < spriteW * 1.3) {
+      // Winding round his legs, which only works if he is standing there.
+      catIdle = "rub"
+      catIdleFor = Brain.between(2.5, 5)
+    } else {
+      // Cats knead before they settle.
+      catIdle = "knead"
+      catIdleFor = Brain.between(1.2, 2.2)
     }
   }
 
   function stepCatIdle(dt) {
     if (catMood === "walk") {
-      // Walking resets her to sitting, so she does not resume a half-finished
-      // wash the moment she stops.
-      catIdle = "sit"
-      catIdleClock = 0
-      catIdleFor = Brain.between(2, 5)
+      // Reset once when she sets off, not on every tick of walking. Resetting
+      // per tick meant that while she was following him about -- which is
+      // most of the time ashore -- her activity timer never reached its end
+      // and she could only ever sit.
+      if (!catWasWalking) {
+        catIdle = "sit"
+        catIdleClock = 0
+        catIdleFor = Brain.between(2, 5)
+        catWasWalking = true
+      }
       return
     }
+    catWasWalking = false
     catIdleClock += dt
     if (catIdleClock >= catIdleFor)
       pickCatIdle()
@@ -1009,6 +1083,12 @@ Item {
   function stepCat(dt) {
     if (!hasCat)
       return
+
+    maybeCatTask()
+    if (catTask !== "") {
+      stepCatTask(dt)
+      return
+    }
 
     // She will not get in the boat. No cat would. While he is out on the
     // water, or off through a doorway, she waits where she last stood.
@@ -1102,6 +1182,193 @@ Item {
     stepCatIdle(dt)
   }
 
+  // --- things she goes off and does ----------------------------------------
+
+  function startCatTask(kind, seconds, towardX) {
+    catTask = kind
+    catTaskClock = 0
+    catTaskFor = seconds
+    catTaskX = Math.max(0, Math.min(stage.width - catW, towardX))
+    catIdle = "sit"
+    catIdleClock = 0
+  }
+
+  function maybeCatTask() {
+    if (catTask !== "" || !hasCat || clock < nextCatTask)
+      return
+    if (afloat || catAboard || mood === "away" || mood === "vanish" || catOnHim)
+      return
+    nextCatTask = clock + Brain.between(40, 90)
+
+    const roll = Math.random()
+    if (roll < 0.30) {
+      // Off to fetch him something. She is simply gone for a while.
+      catGift = true
+      startCatTask("gift", Brain.between(8, 14),
+                   catX + (Math.random() < 0.5 ? -1 : 1) * spriteW * 2.5)
+    } else if (roll < 0.55 && (mood === "walk" || mood === "idle")) {
+      // Directly in his way, which is where cats prefer to be.
+      startCatTask("underfoot", Brain.between(3, 6), fx + facing * spriteW * 0.5)
+    } else if (roll < 0.75 && !overWater) {
+      startCatTask("perch", Brain.between(10, 20), fx)
+    } else if (roll < 0.88 && inventory.length > 0
+               && Math.abs(catX - fx) < spriteW * 1.5) {
+      // The most cat-shaped idea available: something leaves his pack.
+      const lost = inventory[Math.floor(Math.random() * inventory.length)]
+      const kept = []
+      for (let i = 0; i < inventory.length; i++)
+        if (inventory[i] !== lost)
+          kept.push(inventory[i])
+      inventory = kept
+      dropped = lost
+      droppedX = fx + spriteW * 0.5 + (facing > 0 ? 1 : -1) * spriteW * 0.4
+      droppedUntil = clock + 9
+      say("SOOT. THAT WAS MY " + lost.toUpperCase() + ".", 3.2)
+      startCatTask("underfoot", Brain.between(3, 5), droppedX - catW / 2)
+    } else {
+      const crystals = poisOfKind("crystal")
+      if (crystals.length === 0)
+        return
+      const c = crystals[Math.floor(Math.random() * crystals.length)]
+      startCatTask("crystal", Brain.between(5, 9), Number(c.x) - catW / 2)
+    }
+  }
+
+  // Walk her toward a spot; true once she is there.
+  function catWalkTo(dt, goal) {
+    const dist = goal - catX
+    if (Math.abs(dist) < catUnit * 3)
+      return true
+    const dir = dist > 0 ? 1 : -1
+    const next = catX + dir * walkSpeed * catUnit * 1.45 * dt
+    if (surfaceAt(next + catW / 2) === "water")
+      return true
+    catX = next
+    catTurn(dir)
+    catMood = "walk"
+    return false
+  }
+
+  function stepCatTask(dt) {
+    catTaskClock += dt
+
+    switch (catTask) {
+    case "greet":
+      // Straight over to him. Death is the one visitor she gets up for.
+      if (catWalkTo(dt, deathX + spriteW * 0.5 - catW / 2)) {
+        catMood = "sit"
+        catIdle = "rub"
+        catTurn(deathX > catX ? 1 : -1)
+      }
+      if (!deathHere)
+        catTask = ""
+      break
+    case "follow":
+      if (catWalkTo(dt, catTaskX))
+        catMood = "sit"
+      if (catTaskClock >= catTaskFor)
+        catTask = ""
+      break
+    case "gift":
+      if (catTaskClock < catTaskFor * 0.5) {
+        catWalkTo(dt, catTaskX)
+      } else if (catWalkTo(dt, fx + spriteW * 0.4)) {
+        catMood = "sit"
+      }
+      if (catTaskClock >= catTaskFor) {
+        catTask = ""
+        if (catGift) {
+          catGift = false
+          const gift = Math.random() < 0.5 ? "fish" : "mushroom"
+          if (inventory.indexOf(gift) === -1) {
+            acquire(gift)
+            say(gift === "fish" ? "SHE BROUGHT ME A FISH."
+                                : "THANK YOU. I THINK.", 3.2)
+          }
+        }
+      }
+      break
+    case "underfoot":
+      if (catWalkTo(dt, catTaskX)) {
+        catMood = "sit"
+        catTurn(fx > catX ? 1 : -1)
+        if (mood === "walk")
+          enterIdle(Brain.between(1.5, 3.0))
+        if (Math.random() < dt * 0.5)
+          say("YOU ARE STANDING ON MY FOOT.", 2.6)
+      }
+      if (catTaskClock >= catTaskFor)
+        catTask = ""
+      break
+    case "perch":
+      // Riding: she is drawn into his frame, so she just tracks him.
+      catX = fx
+      catFootY = footY
+      catMood = "sit"
+      if (catTaskClock >= catTaskFor || afloat || overWater || mood === "sleep")
+        catTask = ""
+      break
+    case "crystal":
+      if (catWalkTo(dt, catTaskX)) {
+        catMood = "sit"
+        catIdle = "rub"
+        if (Math.random() < dt * 1.2)
+          spawn(2, catX + catW / 2, catFootY - catH / 2,
+                [Sprites.PALETTE["C"], Sprites.PALETTE["A"]], 45, 0.6)
+      }
+      if (catTaskClock >= catTaskFor)
+        catTask = ""
+      break
+    }
+
+    if (catTask !== "perch")
+      settleCat()
+  }
+
+  // Reachable as: omarchy-shell shell call landis.wizard catDo greet
+  function catDo(kind) {
+    const what = String(kind || "").trim()
+    switch (what) {
+    case "greet":
+      if (!deathHere)
+        return "no death"
+      startCatTask("greet", 30, deathX)
+      return "ok"
+    case "gift":
+      catGift = true
+      startCatTask("gift", Brain.between(8, 14), catX + spriteW * 2.5)
+      return "ok"
+    case "underfoot":
+      startCatTask("underfoot", Brain.between(3, 6), fx + facing * spriteW * 0.5)
+      return "ok"
+    case "perch":
+      startCatTask("perch", Brain.between(10, 20), fx)
+      return "ok"
+    case "crystal": {
+      const crystals = poisOfKind("crystal")
+      if (crystals.length === 0)
+        return "no crystals"
+      const c = crystals[Math.floor(Math.random() * crystals.length)]
+      startCatTask("crystal", Brain.between(5, 9), Number(c.x) - catW / 2)
+      return "ok"
+    }
+    default:
+      // Anything else is treated as an idle activity name.
+      catIdle = what
+      catIdleClock = 0
+      catIdleFor = 4
+      return "ok"
+    }
+  }
+
+  // True while she is riding on his hat and drawn as part of his sprite.
+  readonly property bool catRiding: catTask === "perch"
+
+  // Is there water within a step or two of here? Used for her batting at it.
+  function nearWater(x) {
+    return surfaceAt(x + spriteW * 0.8) === "water" || surfaceAt(x - spriteW * 0.8) === "water"
+  }
+
   // Same idea as turnAround(), for her: a floor on how often she may change
   // which way she is looking.
   function catTurn(dir) {
@@ -1140,6 +1407,10 @@ Item {
     deathMood = "in"
     deathClock = 0
     deathHere = true
+    // She gets up for him. He is the one visitor she does that for, and him
+    // walking to a motionless cat had the relationship backwards.
+    if (hasCat && !catOnHim && !afloat)
+      startCatTask("greet", 30, deathX)
     return true
   }
 
@@ -1202,6 +1473,10 @@ Item {
       if (deathClock >= 1.1) {
         deathHere = false
         deathLines = []
+        // A few steps after him, then thinking better of it.
+        if (hasCat && catTask === "greet" && !catOnHim)
+          startCatTask("follow", Brain.between(2.5, 4.5),
+                       deathX + (deathFacing > 0 ? spriteW : -spriteW))
       }
       break
     }
@@ -1258,6 +1533,8 @@ Item {
       return "blink"
     switch (mood) {
     case "walk":
+      if (catRiding)
+        return Sprites.PERCH[Math.floor(animClock / 0.17) % Sprites.PERCH.length]
       return Sprites.WALK[Math.floor(animClock / 0.17) % Sprites.WALK.length]
     case "row":
     case "board":
@@ -1295,6 +1572,8 @@ Item {
       // Plays once and holds on the flourish rather than looping.
       return Sprites.CAST[Math.min(Sprites.CAST.length - 1, Math.floor(moodClock / 0.16))]
     default:
+      if (catRiding)
+        return Sprites.PERCH[Math.floor(animClock / 0.6) % 2]
       return Sprites.IDLE[Math.floor(animClock / 0.6) % Sprites.IDLE.length]
     }
   }
@@ -1448,6 +1727,14 @@ Item {
         footY += Math.max(-280 * dt, Math.min(280 * dt, drop))
     }
 
+    if (dropped !== "") {
+      if (clock > droppedUntil || Math.abs(centerX - droppedX) < spriteW * 0.5) {
+        if (inventory.indexOf(dropped) === -1 && Math.abs(centerX - droppedX) < spriteW * 0.6)
+          acquire(dropped)
+        dropped = ""
+      }
+    }
+
     if (bubbleUntil > 0 && clock > bubbleUntil) {
       bubbleLines = []
       bubbleUntil = 0
@@ -1521,7 +1808,9 @@ Item {
       if (moodClock >= moodFor) {
         // Decided as he lies down, not when he decided to: that gives her the
         // couple of seconds it takes him to unroll it to come and join him.
-        catInBed = hasCat && !overWater && Math.abs(catX - fx) < spriteW * 1.6
+        // She is generous about sharing a bed she was already sitting on.
+        catInBed = hasCat && !overWater && !catRiding
+          && Math.abs(catX - fx) < spriteW * 1.8
         mood = "sleep"
         moodClock = 0
         animClock = 0
@@ -1840,6 +2129,24 @@ Item {
         Behavior on opacity {
           NumberAnimation {
             duration: 400
+          }
+        }
+      }
+
+      // Something she has batted out of his pack, lying where it fell.
+      PixelGrid {
+        id: droppedItem
+        rows: (root.dropped !== "" && Sprites.ITEMS[root.dropped])
+          ? Sprites.ITEMS[root.dropped] : []
+        unit: root.baseUnit
+        x: Math.round(root.droppedX - width / 2)
+        y: Math.round(root.terrainAt(root.droppedX) - height)
+        z: -1
+        opacity: root.dropped !== "" ? 1 : 0
+
+        Behavior on opacity {
+          NumberAnimation {
+            duration: 250
           }
         }
       }
