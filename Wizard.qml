@@ -95,6 +95,9 @@ Item {
   property real ignoreSlopeUntil: 0    // escape hatch when boxed in
   property real lastBlock: -99
   property real commitUntil: 0         // hold this heading; do not dither
+  property bool shoreRolled: false     // has he decided about this shoreline
+  property bool willBoard: false
+  property real noBoatUntil: 0         // he has just landed; let him potter
   property real roamMinX: 0            // how much ground he has covered
   property real roamMaxX: 0
   property real roamSince: 0
@@ -129,6 +132,8 @@ Item {
   property real catNextBlink: 3
   property bool catTailUp: false
   property bool catWasWalking: false
+  property real catDawdleUntil: 0
+  property bool catDawdleRolled: false
   property real catNextFlick: 1.5
   property string catTask: ""          // greet | follow | gift | underfoot | perch | crystal
   property real catTaskClock: 0
@@ -530,6 +535,7 @@ Item {
   }
 
   function beginBeach() {
+    noBoatUntil = clock + Brain.between(40, 90)
     // She steps out where he does.
     if (catAboard) {
       catAboard = false
@@ -756,6 +762,11 @@ Item {
     for (let k = 0; k < pool.length; k++) {
       if (clock < noGoUntil && Math.abs(Number(pool[k].x) - noGoX) < spriteW * 2)
         continue
+      // While he is having his spell ashore, only errands on this side of
+      // the water count. Otherwise every structure across the lake overrides
+      // the cooldown and he is straight back in the boat.
+      if (clock < noBoatUntil && waterBetween(centerX, Number(pool[k].x)))
+        continue
       reachable.push(pool[k])
     }
     if (reachable.length === 0)
@@ -787,6 +798,32 @@ Item {
     nextErrand = clock + Brain.between(25, 70)
     chooseErrand()
     return targetX >= 0
+  }
+
+  // Point him at the nearer bank and let the usual beaching logic finish it.
+  function headAshore() {
+    if (!scene || !scene.surface)
+      return
+    let best = -1
+    let bestDist = Infinity
+    for (let i = 0; i < scene.surface.length; i++) {
+      const run = scene.surface[i]
+      if (String(run.kind) !== "land")
+        continue
+      const edge = Math.max(run.x0, Math.min(run.x1, centerX))
+      const dist = Math.abs(edge - centerX)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = edge
+      }
+    }
+    if (best < 0)
+      return
+    // A destination, not just a heading. Merely pointing him at the bank got
+    // undone by the next random course change, and he never actually landed.
+    const inland = best + (best > centerX ? spriteW : -spriteW)
+    targetX = Math.max(0, Math.min(maxX, inland - spriteW / 2))
+    commitUntil = clock + 12
   }
 
   function abandonErrand() {
@@ -1155,8 +1192,17 @@ Item {
       if (away <= near)
         catMood = (mood === "sleep") ? "curl" : "sit"
     } else if (away >= far) {
-      catMood = "walk"
+      // She does not necessarily come when he sets off. Rolled once per
+      // separation, not per tick, or she would never follow him at all.
+      if (!catDawdleRolled) {
+        catDawdleRolled = true
+        if (Math.random() < 0.35)
+          catDawdleUntil = clock + Brain.between(1.5, 4.0)
+      }
+      if (clock >= catDawdleUntil)
+        catMood = "walk"
     } else {
+      catDawdleRolled = false
       catMood = (mood === "sleep") ? "curl" : "sit"
     }
 
@@ -1680,8 +1726,30 @@ Item {
     // Look at the ground he is about to step on, not the ground he is on.
     const ahead = centerX + dir * (afloat ? spriteW * 1.6 : lookAhead)
     const surface = surfaceAt(ahead)
-    if (!afloat && surface === "water")
-      beginBoard()
+
+    if (surface === "land")
+      shoreRolled = false
+
+    if (!afloat && surface === "water") {
+      // He does not get in the boat merely because the ground ahead is wet.
+      // Decided once per approach rather than per tick, so he either commits
+      // to the crossing or turns back and walks somewhere else for a while.
+      if (!shoreRolled) {
+        shoreRolled = true
+        // The lake is most of his walking band and he moves slower on it, so
+        // even even-handed behaviour leaves him afloat ~70% of the time. The
+        // lever that actually works is a spell ashore after each landing.
+        const mustCross = targetX >= 0 && waterBetween(centerX, targetX + spriteW / 2)
+        willBoard = mustCross || (clock > noBoatUntil && Math.random() < 0.5)
+      }
+      if (willBoard) {
+        beginBoard()
+      } else {
+        fx = before
+        turnAround(-dir)
+        commitUntil = clock + Brain.between(3, 6)
+      }
+    }
     else if (afloat && surface === "land") {
       // Start pulling in well before landfall, then only step ashore once he
       // is actually at the near shore. Beaching from the middle distance would
@@ -1770,6 +1838,12 @@ Item {
         moodFor = Brain.between(3, 8)
         if (maybeErrand())
           break
+        // Most aimless crossings should end at a shore rather than turning
+        // into an afternoon on the water.
+        if (Math.random() < 0.55) {
+          headAshore()
+          break
+        }
         if (Math.random() < 0.25 && inventory.indexOf("fish") === -1)
           acquire("fish")
         else if (Math.random() < 0.3)
@@ -1796,7 +1870,7 @@ Item {
           break
         if (inventory.length > 0 && Math.random() < 0.25)
           useItem(inventory[Math.floor(Math.random() * inventory.length)])
-        else if (Math.random() < 0.18)
+        else if (Math.random() < 0.12)
           enterSleep()
         else if (Math.random() < 0.12 && surfaceAt(centerX) === "land")
           acquire("mushroom")
@@ -1881,6 +1955,10 @@ Item {
     if (roamMaxX - roamMinX < spriteW * 3) {
       ignoreSlopeUntil = clock + 4.0
       commitUntil = 0
+      // If he has boxed himself onto one stretch of bank, the boat is the
+      // way out of it -- so stop refusing the crossing.
+      shoreRolled = true
+      willBoard = true
     }
     roamSince = clock
     roamMinX = fx
