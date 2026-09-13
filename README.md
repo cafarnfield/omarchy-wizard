@@ -54,14 +54,14 @@ safely and he carries on.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/USER/omarchy-wizard.git --enable --yes
+omarchy plugin add https://github.com/chrisfarnfield/omarchy-wizard.git --enable --yes
 omarchy restart shell
 ```
 
 Then summon him:
 
 ```bash
-omarchy-shell shell toggle chris.wizard '{}'
+omarchy-shell shell toggle landis.wizard '{}'
 ```
 
 ### A keybinding
@@ -69,7 +69,7 @@ omarchy-shell shell toggle chris.wizard '{}'
 In `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + ALT + W", "Wizard", "omarchy-shell shell toggle chris.wizard '{}'")
+o.bind("SUPER + ALT + W", "Wizard", "omarchy-shell shell toggle landis.wizard '{}'")
 ```
 
 ### A menu entry
@@ -80,8 +80,8 @@ In `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
 "system.wizard": {
   "icon": "",
   "label": "Wizard",
-  "action": "omarchy-shell shell toggle chris.wizard '{}'",
-  "checked": "hyprctl layers -j | grep -q chris-wizard"
+  "action": "omarchy-shell shell toggle landis.wizard '{}'",
+  "checked": "hyprctl layers -j | grep -q landis-wizard"
 }
 ```
 
@@ -127,7 +127,7 @@ small caps were not otherwise available.
 Options go in the summon payload:
 
 ```bash
-omarchy-shell shell toggle chris.wizard '{"scale":5,"speed":40,"cat":false}'
+omarchy-shell shell toggle landis.wizard '{"scale":5,"speed":40,"cat":false}'
 ```
 
 | key | default | meaning |
@@ -146,13 +146,13 @@ wallpaper — `bottom` is the recommended setting.
 ## Poking at it
 
 ```bash
-omarchy-shell shell call chris.wizard report ""          # full state as JSON
-omarchy-shell shell call chris.wizard say "HELLO"        # put words in his mouth
-omarchy-shell shell call chris.wizard pack ""            # what he is carrying
-omarchy-shell shell call chris.wizard rescan ""          # re-read the wallpaper
-omarchy-shell shell call chris.wizard summonDeath ""     # call Death now
-omarchy-shell shell call chris.wizard startWaterEvent "" # force a lake event
-omarchy-shell shell call chris.wizard startLandEvent ""  # force a shore event
+omarchy-shell shell call landis.wizard report ""          # full state as JSON
+omarchy-shell shell call landis.wizard say "HELLO"        # put words in his mouth
+omarchy-shell shell call landis.wizard pack ""            # what he is carrying
+omarchy-shell shell call landis.wizard rescan ""          # re-read the wallpaper
+omarchy-shell shell call landis.wizard summonDeath ""     # call Death now
+omarchy-shell shell call landis.wizard startWaterEvent "" # force a lake event
+omarchy-shell shell call landis.wizard startLandEvent ""  # force a shore event
 ```
 
 `report` is the thing to reach for when something looks wrong — it gives his

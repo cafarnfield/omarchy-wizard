@@ -8,7 +8,7 @@ import "Brain.js" as Brain
 
 // A summoned desktop familiar who reads the wallpaper he is standing on.
 //
-//   omarchy-shell shell toggle chris.wizard '{}'
+//   omarchy-shell shell toggle landis.wizard '{}'
 //
 // He is a `panel` plugin with keepLoaded off, so nothing of him exists -- no
 // window, no timer, no surface -- until he is summoned, and hiding destroys
@@ -31,7 +31,7 @@ Item {
   property var shell: null
   property var manifest: null
 
-  readonly property string pluginId: manifest && manifest.id ? String(manifest.id) : "chris.wizard"
+  readonly property string pluginId: manifest && manifest.id ? String(manifest.id) : "landis.wizard"
   readonly property string pluginDir: {
     const url = String(Qt.resolvedUrl("."))
     return url.indexOf("file://") === 0 ? url.substring(7) : url
@@ -246,7 +246,7 @@ Item {
     opened = false
   }
 
-  // Reachable as: omarchy-shell shell call chris.wizard say "SOMETHING"
+  // Reachable as: omarchy-shell shell call landis.wizard say "SOMETHING"
   function say(text, seconds) {
     const body = String(text || "").trim()
     if (body === "") {
@@ -848,19 +848,19 @@ Item {
     return "ok"
   }
 
-  // Reachable as: omarchy-shell shell call chris.wizard summonDeath ""
+  // Reachable as: omarchy-shell shell call landis.wizard summonDeath ""
   function summonDeath(arg) {
     return callDeath() ? "ok" : "busy"
   }
 
-  // Reachable as: omarchy-shell shell call chris.wizard pack ""
+  // Reachable as: omarchy-shell shell call landis.wizard pack ""
   function pack(arg) {
     return inventory.join(",")
   }
 
   // What he is doing and what he believes is under him, as JSON. Exists so
   // his behaviour can be checked without a screenshot:
-  //   omarchy-shell shell call chris.wizard report ""
+  //   omarchy-shell shell call landis.wizard report ""
   // Named `report` rather than `state` because Item already has a `state`
   // property, and a function of that name never registers.
   function report(arg) {
@@ -1563,7 +1563,7 @@ Item {
     }
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "chris-wizard"
+    WlrLayershell.namespace: "landis-wizard"
     // Bottom puts him above the wallpaper but beneath every window, so he is
     // part of the desktop scene rather than something in front of your work.
     // That is also what makes his terrain-following read correctly: he is only
