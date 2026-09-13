@@ -546,7 +546,7 @@ Item {
   }
 
   function beginBeach() {
-    noBoatUntil = clock + Brain.between(40, 90)
+    noBoatUntil = clock + Brain.between(55, 110)
     // Same in reverse: without this he arrives at the bank still standing at
     // the waterline, and the slope limit then lets him climb ashore only a
     // few pixels a tick, which is the crawl you can see.
@@ -561,7 +561,9 @@ Item {
     mood = "beach"
     moodClock = 0
     animClock = 0
-    moodFor = 0.6
+    // Longer glide the further out he was, so landing from the middle of the
+    // lake reads as coming in rather than being yanked ashore.
+    moodFor = Math.min(1.5, 0.6 + Math.abs(stepTo - stepFrom) / 260)
     splash(7)
   }
 
@@ -1830,7 +1832,11 @@ Item {
       footY = footing
 
     // Look at the ground he is about to step on, not the ground he is on.
-    const ahead = centerX + dir * (afloat ? spriteW * 1.6 : lookAhead)
+    // He needs to see the water coming well before his toes are in it, or
+    // there is no room to turn without being frozen in place first.
+    const ahead = centerX + dir * (afloat ? spriteW * 1.6
+                                          : (surfaceAt(centerX) === "land" ? spriteW * 0.75
+                                                                           : lookAhead))
     const surface = surfaceAt(ahead)
 
     if (surface === "land")
@@ -1851,19 +1857,28 @@ Item {
       if (willBoard) {
         beginBoard()
       } else {
+        // Turn away now, not in up to half a second. The turn cooldown exists
+        // to stop him dithering, but here it left him walking on the spot at
+        // the waterline until it expired -- and since he refuses most
+        // approaches while having his spell ashore, he did that constantly.
         fx = before
+        lastTurn = -99
         turnAround(-dir)
-        commitUntil = clock + Brain.between(3, 6)
+        abandonErrand()
+        commitUntil = clock + Brain.between(7, 14)
       }
     }
     else if (afloat && surface === "land") {
-      // Start pulling in well before landfall, then only step ashore once he
-      // is actually at the near shore. Beaching from the middle distance would
-      // pop him from small to full size the moment he touched the bank.
+      // Pull in as he goes, and land as soon as he is actually at the bank.
+      //
+      // This used to hold him still until he had drifted all the way to the
+      // near shore, to stop him popping from small to full size on landing.
+      // That is no longer a risk -- his scale is continuous and eased, and
+      // beginBeach() glides his footing across the animation -- and all the
+      // freeze achieved was several seconds of rowing on the spot a boat's
+      // length from dry land.
       waterTargetY = waterNear
-      if (footY < waterNear - unit * 3)
-        fx = before
-      else if (surfaceAt(centerX) === "land")
+      if (surfaceAt(centerX) === "land")
         beginBeach()
     }
   }
