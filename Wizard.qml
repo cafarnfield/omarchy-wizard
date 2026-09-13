@@ -1759,7 +1759,11 @@ Item {
       const delta = targetX - fx
       if (Math.abs(delta) < Math.max(unit * 4, spriteW * 0.6)) {
         fx = targetX
-        footY = terrainAt(centerX)
+        // Afloat his footing is the water line, which the rowing handler
+        // owns. Reading it off the terrain here jumped him to bank height
+        // for a frame, and this branch returns before anything corrects it.
+        if (!afloat)
+          footY = terrainAt(centerX)
         arriveAtErrand()
         return
       }
@@ -1818,7 +1822,12 @@ Item {
     }
 
     blockCount = 0
-    footY = footing
+    // Land only. While rowing this was setting his footing from the ground
+    // under the lake every tick, for the rowing handler to overwrite a moment
+    // later -- two writes a tick, fighting hardest at the shoreline where the
+    // two heights are furthest apart.
+    if (!afloat)
+      footY = footing
 
     // Look at the ground he is about to step on, not the ground he is on.
     const ahead = centerX + dir * (afloat ? spriteW * 1.6 : lookAhead)
@@ -1888,8 +1897,10 @@ Item {
     if (!afloat && mood !== "held" && mood !== "fall" && mood !== "walk") {
       const ground = terrainAt(centerX)
       const drop = ground - footY
+      // Gently. At 280px/s this correction was itself a visible snap when he
+      // stopped walking somewhere the slope limit had held him short.
       if (Math.abs(drop) > 0.5)
-        footY += Math.max(-280 * dt, Math.min(280 * dt, drop))
+        footY += Math.max(-130 * dt, Math.min(130 * dt, drop))
     }
 
     if (dropped !== "") {
