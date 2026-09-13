@@ -122,6 +122,13 @@ Item {
   property real catTurnAt: -99
   property bool catAboard: false       // she came along this time
   property real catStranded: 0         // how long the lake has been between them
+  property string catIdle: "sit"       // sit | groom | loaf | stretch
+  property real catIdleClock: 0
+  property real catIdleFor: 4
+  property real catBlinkUntil: 0
+  property real catNextBlink: 3
+  property bool catTailUp: false
+  property real catNextFlick: 1.5
 
   // Her size follows her own footing, not his. Sharing his `unit` meant she
   // shrank into the distance while sitting on the bank, just because he had
@@ -898,6 +905,8 @@ Item {
       stranded: Math.round(catStranded),
       frame: currentFrame,
       cat: catMood,
+      catIdle: catIdle,
+      catFrame: catFrame,
       catX: Math.round(catX),
       catFacing: catFacing,
       catAboard: catAboard,
@@ -920,7 +929,81 @@ Item {
   readonly property string catFrame: {
     if (catMood === "walk")
       return Sprites.CAT_WALK[Math.floor(animClock / 0.16) % Sprites.CAT_WALK.length]
-    return catMood === "curl" ? "cat_curl" : "cat_sit"
+    if (catMood === "curl")
+      return "cat_curl"
+    switch (catIdle) {
+    case "loaf":
+      return "cat_curl"
+    case "stretch":
+      return "cat_stretch"
+    case "groom":
+      return Sprites.CAT_GROOM[Math.floor(catIdleClock / 0.34) % Sprites.CAT_GROOM.length]
+    default:
+      if (clock < catBlinkUntil)
+        return "cat_blink"
+      return catTailUp ? "cat_sit2" : "cat_sit"
+    }
+  }
+
+  // What she does with herself while he is busy. A cat sitting perfectly
+  // still is a cat that looks stuffed; the tail is doing most of the work
+  // here, and it costs two frames.
+  function pickCatIdle() {
+    catIdleClock = 0
+    if (catIdle === "loaf") {
+      // Always a stretch on the way out of a nap.
+      catIdle = "stretch"
+      catIdleFor = 1.3
+      return
+    }
+    if (catIdle === "stretch") {
+      catIdle = "sit"
+      catIdleFor = Brain.between(3, 6)
+      return
+    }
+    // Weighted by time, not by roll: loafing is a single still frame, so a
+    // long nap undoes the point of animating her at all. Sitting has the
+    // flicking tail, grooming has two frames -- keep her in those.
+    const roll = Math.random()
+    if (roll < 0.50) {
+      catIdle = "sit"
+      catIdleFor = Brain.between(3, 7)
+    } else if (roll < 0.80) {
+      catIdle = "groom"
+      catIdleFor = Brain.between(2.5, 5.5)
+    } else {
+      catIdle = "loaf"
+      catIdleFor = Brain.between(5, 11)
+    }
+  }
+
+  function stepCatIdle(dt) {
+    if (catMood === "walk") {
+      // Walking resets her to sitting, so she does not resume a half-finished
+      // wash the moment she stops.
+      catIdle = "sit"
+      catIdleClock = 0
+      catIdleFor = Brain.between(2, 5)
+      return
+    }
+    catIdleClock += dt
+    if (catIdleClock >= catIdleFor)
+      pickCatIdle()
+
+    if (catIdle === "sit") {
+      // The tail is the constant background motion, so it has to be doing
+      // something a decent fraction of the time. At one flick every few
+      // seconds she still read as a stuffed cat between them.
+      if (clock > catNextFlick) {
+        catTailUp = !catTailUp
+        catNextFlick = clock + (catTailUp ? Brain.between(0.5, 1.3)
+                                          : Brain.between(0.6, 1.9))
+      }
+      if (clock > catNextBlink) {
+        catBlinkUntil = clock + 0.22
+        catNextBlink = clock + Brain.between(2.0, 5.5)
+      }
+    }
   }
 
   function stepCat(dt) {
@@ -971,7 +1054,10 @@ Item {
         return
       }
       catMood = "sit"
+      // Waiting on the bank, she watches whichever way he went.
+      catTurn(centerX > catX ? 1 : -1)
       settleCat()
+      stepCatIdle(dt)
       return
     }
 
@@ -1013,6 +1099,7 @@ Item {
     }
 
     settleCat()
+    stepCatIdle(dt)
   }
 
   // Same idea as turnAround(), for her: a floor on how often she may change

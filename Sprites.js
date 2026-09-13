@@ -125,6 +125,20 @@ var CW = 15
 var CH = 12
 
 var CATS = {
+  "cat_blink": [
+    ".....K...K.....",
+    "....KxK.KxK....",
+    "...KxXxKxXxK...",
+    "...KXXXxXXXK...",
+    "...KXXXXXXXK...",
+    "...KXXXXXXXK...",
+    "....KXXXXXK....",
+    "...KXXXXXXXKK..",
+    "..KxXXXXXXXKxK.",
+    "..KXXXXXXXXKXxK",
+    ".KxXXXXXXXXxKXK",
+    ".KXXXXXXXXXXKK."
+  ],
   "cat_curl": [
     "...............",
     ".....KKKKK.....",
@@ -139,6 +153,34 @@ var CATS = {
     "...KXXXXXXXKXXK",
     "....KKKKKKK.KK."
   ],
+  "cat_groom1": [
+    "...............",
+    ".....K...K.....",
+    "....KxK.KxK....",
+    "...KxXxKxXxK...",
+    "...KXXXxXXXK...",
+    "...KXXoXXXXK...",
+    "...KXXXXXXK.K..",
+    "..KxXXXXXXXKxK.",
+    "..KXXXXXXXXKXxK",
+    ".KxXXXXXXXXxKXK",
+    ".KXXXXXXXXXXKK.",
+    "..KKKKKKKKKK..."
+  ],
+  "cat_groom2": [
+    "...............",
+    "...............",
+    ".....K...K.....",
+    "....KxK.KxK....",
+    "...KxXxKxXxK...",
+    "...KXXXxXXXK...",
+    "..KxXoXXXXXKK..",
+    "..KXXXXXXXXKxK.",
+    ".KxXXXXXXXXKXxK",
+    ".KXXXXXXXXXxKXK",
+    ".KXXXXXXXXXXKK.",
+    "..KKKKKKKKKK..."
+  ],
   "cat_sit": [
     ".....K...K.....",
     "....KxK.KxK....",
@@ -152,6 +194,34 @@ var CATS = {
     "..KXXXXXXXXKXxK",
     ".KxXXXXXXXXxKXK",
     ".KXXXXXXXXXXKK."
+  ],
+  "cat_sit2": [
+    ".....K...K...K.",
+    "....KxK.KxK.KxK",
+    "...KxXxKxXxKxXK",
+    "...KXXXxXXXKXK.",
+    "...KXoXXXoXKXK.",
+    "...KXXXXXXXKXK.",
+    "....KXXXXXKKXK.",
+    "...KXXXXXXXxXK.",
+    "..KxXXXXXXXKK..",
+    "..KXXXXXXXXK...",
+    ".KxXXXXXXXXXK..",
+    ".KXXXXXXXXXXK.."
+  ],
+  "cat_stretch": [
+    "...............",
+    ".K.............",
+    "KxK.......KK...",
+    "KXxK.....KxxKK.",
+    ".KXKKKKKKxXXxxK",
+    ".KXxxxxxxXXoXXK",
+    "..KXXXXXXXXXXXK",
+    "..KKXXXXXXXKKK.",
+    ".KXXKKKKKKKXXK.",
+    ".KXXK.....KXXK.",
+    ".KxxK.....KxxK.",
+    "..KK.......KK.."
   ],
   "cat_walk1": [
     ".K.........K.K.",
@@ -184,6 +254,8 @@ var CATS = {
 }
 
 var CAT_WALK = ["cat_walk1", "cat_walk2"]
+var CAT_SIT = ["cat_sit", "cat_sit2"]
+var CAT_GROOM = ["cat_groom1", "cat_groom2"]
 
 var FRAME_PAD = {
   "idle1": 0,
@@ -239,8 +311,13 @@ var FRAME_PAD = {
 }
 
 var CAT_PAD = {
+  "cat_blink": 0,
   "cat_curl": 0,
+  "cat_groom1": 0,
+  "cat_groom2": 0,
   "cat_sit": 0,
+  "cat_sit2": 0,
+  "cat_stretch": 0,
   "cat_walk1": 2,
   "cat_walk2": 2
 }
