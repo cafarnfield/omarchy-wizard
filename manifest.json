@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "chris.wizard",
+  "name": "Wizard",
+  "version": "1.0.0",
+  "author": "Christopher Farnfield",
+  "description": "A wizard who reads your wallpaper: walks its shoreline, rows its lake, and visits its castles. With a cat, and occasional visits from Death.",
+  "kinds": [
+    "panel"
+  ],
+  "keepLoaded": false,
+  "entryPoints": {
+    "panel": "Wizard.qml"
+  }
+}
