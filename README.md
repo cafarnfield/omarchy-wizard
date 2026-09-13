@@ -54,7 +54,7 @@ safely and he carries on.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/chrisfarnfield/omarchy-wizard.git --enable --yes
+omarchy plugin add https://github.com/cafarnfield/omarchy-wizard.git --enable --yes
 omarchy restart shell
 ```
 
