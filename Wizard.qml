@@ -51,7 +51,9 @@ Item {
   // Rows of empty grid under the current pose. His feet are the bottom of the
   // drawn content, not the bottom of the grid it happens to be drawn on.
   readonly property real framePad: (Sprites.FRAME_PAD[currentFrame] || 0) * unit
-  readonly property real catPad: (Sprites.CAT_PAD[catFrame] || 0) * catUnit
+  readonly property real catPad: catShape !== ""
+    ? (Sprites.SHAPE_PAD[catShape] || 0) * catUnit
+    : (Sprites.CAT_PAD[catFrame] || 0) * catUnit
 
   // --- live state ----------------------------------------------------------
   property string mood: "idle"
@@ -88,6 +90,8 @@ Item {
   property real landX: 0
   property real nextLandEvent: 45
   property bool catInBed: false        // she is asleep on him
+  property string catShape: ""         // what he has turned her into
+  property real nextBrew: 0            // next flourish at the table
   property real sleepFor: 0            // how long he intends to sleep once in
   property real waterY: 0              // the line he is sailing along
   property real waterTargetY: 0        // where on the lake he is heading
@@ -98,6 +102,8 @@ Item {
   property bool shoreRolled: false     // has he decided about this shoreline
   property bool willBoard: false
   property real noBoatUntil: 0         // he has just landed; let him potter
+  property real stepFrom: 0            // footing at the start of a transition
+  property real stepTo: 0
   property real roamMinX: 0            // how much ground he has covered
   property real roamMaxX: 0
   property real roamSince: 0
@@ -518,14 +524,19 @@ Item {
   }
 
   function beginBoard() {
+    // Stepping off the bank into the boat is a drop of a hundred pixels or
+    // so. Snapping it looked like a glitch, and leaving the old footing in
+    // place had him drifting out to the waterline over the following
+    // seconds -- so it is eased across the boarding animation instead.
+    stepFrom = footY
+    stepTo = Math.max(waterFar, Math.min(waterNear, waterNear))
     // Sometimes she comes. She has to be nearby to bother, and even then it
     // is roughly one crossing in two -- a cat that always got in the boat
     // would not be a cat.
     catAboard = hasCat && Math.abs(catX - fx) < spriteW * 2.5 && Math.random() < 0.45
     mood = "board"
-    waterY = Math.max(waterFar, Math.min(waterNear, footY))
+    waterY = stepTo
     waterTargetY = waterY
-    footY = waterY
     moodClock = 0
     animClock = 0
     moodFor = 0.7
@@ -536,6 +547,11 @@ Item {
 
   function beginBeach() {
     noBoatUntil = clock + Brain.between(40, 90)
+    // Same in reverse: without this he arrives at the bank still standing at
+    // the waterline, and the slope limit then lets him climb ashore only a
+    // few pixels a tick, which is the crawl you can see.
+    stepFrom = footY
+    stepTo = terrainAt(centerX)
     // She steps out where he does.
     if (catAboard) {
       catAboard = false
@@ -672,7 +688,16 @@ Item {
     nextLandEvent = clock + Brain.between(55, 130)
     landClock = 0
 
-    if (Math.random() < 0.55) {
+    const pick = Math.random()
+    if (pick < 0.38) {
+      landEvent = "study"
+      landFor = Brain.between(26, 46)
+      landX = centerX + (facing > 0 ? spriteW * 0.85 : -spriteW * 0.85)
+      nextBrew = landClock + Brain.between(3, 6)
+      say(Brain.pick(Brain.STUDY, ""), 3.4)
+      enterIdle(landFor)
+      turnAround(landX > centerX ? 1 : -1)
+    } else if (pick < 0.72) {
       landEvent = "campfire"
       landFor = Brain.between(16, 26)
       landX = centerX + (facing > 0 ? spriteW * 0.75 : -spriteW * 0.75)
@@ -702,6 +727,40 @@ Item {
     }
     landClock += dt
 
+    if (landEvent === "study") {
+      // Keep him at the bench rather than wandering off mid-experiment.
+      if (mood === "walk")
+        enterIdle(Math.max(1.0, landFor - landClock))
+
+      if (landClock > nextBrew) {
+        nextBrew = landClock + Brain.between(4, 8)
+        const what = Math.random()
+        if (what < 0.34) {
+          // Something in the glassware objects to being mixed.
+          spawn(9, landX - spriteW * 0.28, terrainAt(landX) - baseUnit * 10,
+                [Sprites.PALETTE["V"] || Sprites.PALETTE["C"], Sprites.PALETTE["C"],
+                 Sprites.PALETTE["A"]], 70, 0.9)
+          if (Math.random() < 0.3) {
+            say(Brain.pick(Brain.BREW_LUCK, ""), 3.2)
+            if (Math.random() < 0.5)
+              acquire(["crystal", "book", "mushroom"][Math.floor(Math.random() * 3)])
+          }
+        } else if (what < 0.62 && hasCat && catShape === "" && !catOnHim
+                   && Math.abs(catX - fx) < spriteW * 2.2) {
+          transformCat()
+        } else {
+          say(Brain.pick(Brain.STUDY, ""), 3.2)
+          if (Math.random() < 0.4) {
+            mood = "cast"
+            moodClock = 0
+            animClock = 0
+            moodFor = 1.0
+            spawn(8, orbX, orbY, [Sprites.PALETTE["C"], Sprites.PALETTE["Y"]], 90, 0.7)
+          }
+        }
+      }
+    }
+
     if (landEvent === "campfire") {
       // Embers drifting up off it.
       if (Math.random() < dt * 5)
@@ -715,10 +774,40 @@ Item {
     if (landClock >= landFor) {
       if (landEvent === "campfire")
         spawn(6, landX, footY - unit * 3, [Sprites.PALETTE["G"]], 45, 0.8)
+      if (landEvent === "study")
+        revertCat()
       landEvent = ""
       landClock = 0
     }
   }
+
+  // --- turning the cat into things ----------------------------------------
+
+  function transformCat() {
+    catShape = Sprites.SHAPE_NAMES[Math.floor(Math.random() * Sprites.SHAPE_NAMES.length)]
+    catTask = ""
+    catMood = "sit"
+    catIdle = "sit"
+    say(Brain.pick(Brain.TRANSFORM, ""), 3.2)
+    spawn(16, catX + catW / 2, catFootY - catH / 2,
+          [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["L"]], 110, 0.8)
+  }
+
+  function revertCat() {
+    if (catShape === "")
+      return
+    spawn(16, catX + catW / 2, catFootY - catH / 2,
+          [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["Y"]], 110, 0.8)
+    catShape = ""
+    // She takes a dim view of the whole business.
+    catIdle = "arch"
+    catIdleClock = 0
+    catIdleFor = Brain.between(3, 5)
+    say(Brain.pick(Brain.REVERT, ""), 3.0)
+  }
+
+  readonly property string tableFrame:
+    Sprites.TABLE_NAMES[Math.floor(animClock / 0.22) % Sprites.TABLE_NAMES.length]
 
   readonly property string fireFrame:
     Sprites.FIRE_NAMES[Math.floor(animClock / 0.13) % Sprites.FIRE_NAMES.length]
@@ -971,6 +1060,7 @@ Item {
       cat: catMood,
       catIdle: catIdle,
       catTask: catTask,
+      catShape: catShape,
       catIdleClock: Math.round(catIdleClock*10)/10,
       catIdleFor: Math.round(catIdleFor*10)/10,
       dropped: dropped,
@@ -1120,6 +1210,13 @@ Item {
   function stepCat(dt) {
     if (!hasCat)
       return
+
+    if (catShape !== "") {
+      // Teapots do not follow people about.
+      catMood = "sit"
+      settleCat()
+      return
+    }
 
     maybeCatTask()
     if (catTask !== "") {
@@ -1854,11 +1951,16 @@ Item {
       break
     }
     case "board":
-      if (moodClock >= moodFor)
+      footY = stepFrom + (stepTo - stepFrom) * Math.min(1, moodClock / Math.max(0.1, moodFor))
+      if (moodClock >= moodFor) {
+        footY = stepTo
         enterWalk(0)
+      }
       break
     case "beach":
+      footY = stepFrom + (stepTo - stepFrom) * Math.min(1, moodClock / Math.max(0.1, moodFor))
       if (moodClock >= moodFor) {
+        footY = stepTo
         mood = "walk"
         moodClock = 0
         moodFor = Brain.between(2.5, 7)
@@ -2193,6 +2295,24 @@ Item {
         z: -2
       }
 
+      // His working table.
+      PixelGrid {
+        id: workTable
+        rows: root.landEvent === "study" ? Sprites.TABLE[root.tableFrame] : []
+        unit: root.baseUnit
+        x: Math.round(root.landX - width / 2)
+        y: Math.round(root.terrainAt(root.landX) - height
+             + (Sprites.TABLE_PAD[root.tableFrame] || 0) * root.baseUnit)
+        z: -1
+        opacity: root.landEvent === "study" ? 1 : 0
+
+        Behavior on opacity {
+          NumberAnimation {
+            duration: 400
+          }
+        }
+      }
+
       // His campfire.
       PixelGrid {
         id: campfire
@@ -2229,17 +2349,19 @@ Item {
         }
       }
 
-      // Soot. Drawn behind Landis so he can pass in front of her.
+      // Soot, in front of Landis and everything else. She is small and very
+      // dark, and behind him she kept disappearing into his robe.
       PixelGrid {
         id: catSprite
         // Hidden while she is riding: the boat frame already has her in it.
         rows: (root.hasCat && !root.catAboard && !root.catOnHim)
-          ? Sprites.CATS[root.catFrame] : []
+          ? (root.catShape !== "" ? Sprites.SHAPES[root.catShape]
+                                  : Sprites.CATS[root.catFrame]) : []
         unit: root.catUnit
         flip: root.catFacing < 0
         x: Math.round(root.catX)
         y: Math.round(root.catFootY - height + root.catPad)
-        z: -1
+        z: 2
         opacity: root.hasCat ? 1 : 0
       }
 

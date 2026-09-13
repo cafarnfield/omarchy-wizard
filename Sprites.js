@@ -356,6 +356,132 @@ var CAT_SIT = ["cat_sit", "cat_sit2"]
 var CAT_GROOM = ["cat_groom1", "cat_groom2"]
 var CAT_POUNCE = ["cat_crouch", "cat_wiggle", "cat_crouch", "cat_wiggle", "cat_pounce"]
 var CAT_KNEAD = ["cat_knead", "cat_sit"]
+var TW = 20
+var TH = 15
+var TABLE = {
+  "table1": [
+    "...KYK.....KKK......",
+    "...KYK....KQQQK.....",
+    "..KKMK...KQQQQQK....",
+    ".KCKMK..KQQQQQQQK...",
+    "KCCCMK.KQQQQQQQQQK..",
+    "KCACMKKQQQQQQQQQQQK.",
+    "KCCCMKKQQKKKKKKKQQKK",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "TTKKKKKKKKKKKKKKKKTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "KK................KK"
+  ],
+  "table2": [
+    "...KYK.....KKK......",
+    "..KYYYK...KQQQK.....",
+    "..KKMK...KQQQQQK....",
+    ".KCKMK..KQQQQQQQK...",
+    "KCACMK.KQQQQQQQQQK..",
+    "KCCCMKKQQQQQQQQQQQK.",
+    "KCCCMKKQQKKKKKKKQQKK",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "TTKKKKKKKKKKKKKKKKTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "KK................KK"
+  ],
+  "table3": [
+    "...KYK.....KKK......",
+    "..KKYK....KQQQK.....",
+    ".KAKMK...KQQQQQK....",
+    ".KCKMK..KQQQQQQQK...",
+    "KCCCMK.KQQQQQQQQQK..",
+    "KCCCMKKQQQQQQQQQQQK.",
+    "KCACMKKQQKKKKKKKQQKK",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "TTKKKKKKKKKKKKKKKKTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "TTK..............KTT",
+    "KK................KK"
+  ]
+}
+var TABLE_NAMES = ["table1", "table2", "table3"]
+var TABLE_PAD = {
+  "table1": 0,
+  "table2": 0,
+  "table3": 0
+}
+var SHAPES = {
+  "shape_duck": [
+    "...............",
+    "..........KKK..",
+    ".........KQQQKK",
+    "........KQQoQQY",
+    "...KKKKKKQQQQQK",
+    "..KQQQQQQQQQQK.",
+    ".KQQQQQQQQQQK..",
+    "KQQQQQQQQQQQK..",
+    "KQQQQQQQQQQK...",
+    ".KQQQQQQQQK....",
+    "..KKKKKKKK.....",
+    "..............."
+  ],
+  "shape_frog": [
+    "...............",
+    "...............",
+    "....KK...KK....",
+    "...KXXK.KXXK...",
+    "..KXoXKKKXoXK..",
+    ".KVVVVVVVVVVVK.",
+    "KVVVVVVVVVVVVVK",
+    "KVVVVVVVVVVVVVK",
+    ".KVVVVVVVVVVVK.",
+    "KVVKKKKKKKKKVVK",
+    "VVVK.......KVVV",
+    "KKK.........KKK"
+  ],
+  "shape_pumpkin": [
+    "...............",
+    "......KK.......",
+    "....KKVVKKK....",
+    "..KKRRRVRRRKK..",
+    ".KRRRRRRRRRRRK.",
+    "KRRRRRRRRRRRRRK",
+    "KRRRRRRRRRRRRRK",
+    "KRRRRRRRRRRRRRK",
+    ".KRRRRRRRRRRRK.",
+    "..KKRRRRRRRKK..",
+    "....KKKKKKK....",
+    "..............."
+  ],
+  "shape_teapot": [
+    "...............",
+    ".......K.......",
+    "....KKKXKKK....",
+    "..KKQQQQQQQKK..",
+    ".KMQQQQQQQQQMK.",
+    "KMMQQQQQQQQQMMK",
+    "KMMQQQQQQQQQKMK",
+    "KMKQQQQQQQQQKMK",
+    ".KKQQQQQQQQQKK.",
+    "..KMMMMMMMMMK..",
+    "...KKKKKKKKK...",
+    "..............."
+  ]
+}
+var SHAPE_NAMES = ["shape_duck", "shape_frog", "shape_pumpkin", "shape_teapot"]
+var SHAPE_PAD = {
+  "shape_duck": 1,
+  "shape_frog": 0,
+  "shape_pumpkin": 1,
+  "shape_teapot": 1
+}
 var PERCH = ["perch1", "perch2", "perch3", "perch4"]
 
 var FRAME_PAD = {

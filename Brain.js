@@ -29,6 +29,40 @@ var PHRASES = [
   "MY NAME IS LANDIS, SINCE YOU ASK."
 ]
 
+// At the working table.
+var STUDY = [
+  "THE THIRD LAW IS WRONG.",
+  "MORE SULPHUR.",
+  "IT SHOULD NOT BE GREEN.",
+  "AH. A FOOTNOTE.",
+  "WHO WROTE THIS? ...I DID.",
+  "TWO PARTS MOONLIGHT.",
+  "THE MARGIN IS ALL ARGUMENT."
+]
+
+var BREW_LUCK = [
+  "IT WORKED. I AM AS SURPRISED AS YOU.",
+  "THAT IS NOT THE COLOUR.",
+  "ONE DAY. NOT TODAY.",
+  "HARMLESS. PROBABLY."
+]
+
+var TRANSFORM = [
+  "HOLD STILL, SOOT.",
+  "HM. NOT QUITE.",
+  "A DUCK. WHY A DUCK?",
+  "I CAN FIX THIS.",
+  "THAT WAS NOT THE PLAN.",
+  "DO NOT LOOK AT ME LIKE THAT."
+]
+
+var REVERT = [
+  "THERE. GOOD AS NEW.",
+  "SHE IS NOT SPEAKING TO ME.",
+  "NO HARM DONE.",
+  "WE SHALL NEVER MENTION IT."
+]
+
 // Things that happen ashore.
 var CRYSTAL = [
   "IT HUMS.",

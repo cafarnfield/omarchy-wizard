@@ -1078,6 +1078,165 @@ def makebed(step=0):
     return g
 
 
+# His working table: a plank on trestles with a book, glassware and a candle.
+TW, TH = 20, 15
+
+TABLE = {
+    "table1": [
+        "....Y...............",
+        "....Y......QQQ......",
+        "....M.....QQQQQ.....",
+        "..C.M....QQQQQQQ....",
+        ".CCCM...QQQQQQQQQ...",
+        ".CACM..QQQQQQQQQQQ..",
+        ".CCCM..QQ.......QQ..",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "....................",
+    ],
+    "table2": [
+        "....Y...............",
+        "...YYY.....QQQ......",
+        "....M.....QQQQQ.....",
+        "..C.M....QQQQQQQ....",
+        ".CACM...QQQQQQQQQ...",
+        ".CCCM..QQQQQQQQQQQ..",
+        ".CCCM..QQ.......QQ..",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "....................",
+    ],
+    "table3": [
+        "....Y...............",
+        "....Y......QQQ......",
+        "..A.M.....QQQQQ.....",
+        "..C.M....QQQQQQQ....",
+        ".CCCM...QQQQQQQQQ...",
+        ".CCCM..QQQQQQQQQQQ..",
+        ".CACM..QQ.......QQ..",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "TT................TT",
+        "....................",
+    ],
+}
+
+
+def table_grid(name):
+    rows = TABLE[name]
+    g = [['.'] * TW for _ in range(TH)]
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch != '.':
+                g[y][x] = ch
+    solid = [[g[y][x] != '.' for x in range(TW)] for y in range(TH)]
+    for y in range(TH):
+        for x in range(TW):
+            if solid[y][x]:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < TW and 0 <= ny < TH and solid[ny][nx]:
+                    g[y][x] = 'K'
+                    break
+    return g
+
+
+# What Soot gets turned into. Drawn on her own grid so they swap in place.
+SHAPES = {
+    "shape_frog": [
+        "...............",
+        "...............",
+        "...............",
+        "....XX...XX....",
+        "...XoX...XoX...",
+        "..VVVVVVVVVVV..",
+        ".VVVVVVVVVVVVV.",
+        ".VVVVVVVVVVVVV.",
+        "..VVVVVVVVVVV..",
+        ".VV.........VV.",
+        "VVV.........VVV",
+        "...............",
+    ],
+    "shape_teapot": [
+        "...............",
+        "...............",
+        ".......X.......",
+        "....QQQQQQQ....",
+        "..MQQQQQQQQQM..",
+        ".MMQQQQQQQQQMM.",
+        ".MMQQQQQQQQQ.M.",
+        ".M.QQQQQQQQQ.M.",
+        "...QQQQQQQQQ...",
+        "...MMMMMMMMM...",
+        "...............",
+        "...............",
+    ],
+    "shape_pumpkin": [
+        "...............",
+        "...............",
+        "......VV.......",
+        "....RRRVRRR....",
+        "..RRRRRRRRRRR..",
+        ".RRRRRRRRRRRRR.",
+        ".RRRRRRRRRRRRR.",
+        ".RRRRRRRRRRRRR.",
+        "..RRRRRRRRRRR..",
+        "....RRRRRRR....",
+        "...............",
+        "...............",
+    ],
+    "shape_duck": [
+        "...............",
+        "...............",
+        "..........QQQ..",
+        ".........QQoQQY",
+        ".........QQQQQ.",
+        "...QQQQQQQQQQ..",
+        "..QQQQQQQQQQ...",
+        ".QQQQQQQQQQQ...",
+        ".QQQQQQQQQQ....",
+        "..QQQQQQQQ.....",
+        "...............",
+        "...............",
+    ],
+}
+
+
+def shape_grid(name):
+    rows = SHAPES[name]
+    g = [['.'] * CW for _ in range(CH)]
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch != '.':
+                g[y][x] = ch
+    solid = [[g[y][x] != '.' for x in range(CW)] for y in range(CH)]
+    for y in range(CH):
+        for x in range(CW):
+            if solid[y][x]:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < CW and 0 <= ny < CH and solid[ny][nx]:
+                    g[y][x] = 'K'
+                    break
+    return g
+
+
 PLUGIN = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -1181,6 +1340,28 @@ def emit_js(path):
     out.append("var CAT_GROOM = [\"cat_groom1\", \"cat_groom2\"]")
     out.append("var CAT_POUNCE = [\"cat_crouch\", \"cat_wiggle\", \"cat_crouch\", \"cat_wiggle\", \"cat_pounce\"]")
     out.append("var CAT_KNEAD = [\"cat_knead\", \"cat_sit\"]")
+    out.append("var TW = %d" % TW)
+    out.append("var TH = %d" % TH)
+    out.append("var TABLE = {")
+    out.append(",\n".join(
+        '  "%s": [\n%s\n  ]' % (n, ",\n".join('    "%s"' % ''.join(r) for r in table_grid(n)))
+        for n in sorted(TABLE)))
+    out.append("}")
+    out.append("var TABLE_NAMES = %s" % str(sorted(TABLE)).replace("'", '"'))
+    out.append("var TABLE_PAD = {")
+    out.append(",\n".join('  "%s": %d' % (n, bottom_pad([''.join(r) for r in table_grid(n)]))
+                           for n in sorted(TABLE)))
+    out.append("}")
+    out.append("var SHAPES = {")
+    out.append(",\n".join(
+        '  "%s": [\n%s\n  ]' % (n, ",\n".join('    "%s"' % ''.join(r) for r in shape_grid(n)))
+        for n in sorted(SHAPES)))
+    out.append("}")
+    out.append("var SHAPE_NAMES = %s" % str(sorted(SHAPES)).replace("'", '"'))
+    out.append("var SHAPE_PAD = {")
+    out.append(",\n".join('  "%s": %d' % (n, bottom_pad([''.join(r) for r in shape_grid(n)]))
+                           for n in sorted(SHAPES)))
+    out.append("}")
     out.append("var PERCH = [\"perch1\", \"perch2\", \"perch3\", \"perch4\"]")
     out.append("")
     out.append("var FRAME_PAD = {")
