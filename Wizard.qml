@@ -55,7 +55,10 @@ Item {
   property bool oracleSense: true      // may he notice load, disk, battery
   // Where the chat box sits. `bottom` keeps it behind your windows, part of
   // the desktop like him, at the cost of being unable to type into it.
-  property string chatLayerName: "bottom"
+  // "window" is an ordinary toplevel: typeable, and it falls behind whatever
+  // you focus next. The rest are Wayland layers -- "bottom" behind everything
+  // and read-only, "top" and "overlay" permanently in front.
+  property string chatLayerName: "window"
   // May he form opinions about you and write them down. Off by default; see
   // the note in Oracle.qml for why.
   property bool learnAboutYou: false
@@ -379,7 +382,7 @@ Item {
     else
       chatOpen = !chatOpen
     if (chatOpen)
-      chatBox.focusInput()
+      (chatAsWindow ? chatWindow : chatBox).focusInput()
     return chatOpen ? "open" : "closed"
   }
 
@@ -2481,10 +2484,29 @@ Item {
   // Somewhere his words stay long enough to be read, and somewhere to type
   // back. A second layer surface: in front of your windows and able to take
   // keyboard focus, which is everything his own surface must not be.
+  readonly property bool chatAsWindow: chatLayerName === "window"
+  readonly property bool wantChat: opened && chatOpen && !leaving
+
+  // Both exist; only one is ever shown. Neither creates a surface while it is
+  // invisible, and swapping a Loader between two kinds of window at runtime
+  // was more trouble than the object it saves.
+  ChatWindow {
+    id: chatWindow
+
+    visible: root.wantChat && root.chatAsWindow
+    entries: root.transcript
+    thinking: mind.thinking
+    oracleReady: mind.ready
+    oracleDetail: mind.detail
+
+    onSubmitted: (text) => root.ask(text)
+    onDismissed: root.chatOpen = false
+  }
+
   ChatBox {
     id: chatBox
 
-    visible: root.opened && root.chatOpen && !root.leaving
+    visible: root.wantChat && !root.chatAsWindow
     screen: root.targetScreen
     entries: root.transcript
     layerName: root.chatLayerName
