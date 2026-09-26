@@ -167,8 +167,8 @@ PanelWindow {
     }
 
     // --- the transcript ------------------------------------------------------
-    ListView {
-      id: log
+    Item {
+      id: logArea
       anchors {
         top: rule.bottom
         left: parent.left
@@ -176,6 +176,15 @@ PanelWindow {
         bottom: footer.top
         margins: 10
       }
+
+    ListView {
+      id: log
+      // Sit on the floor and grow upwards, the way a conversation does. A
+      // plain fill would leave the first few lines stranded at the top with
+      // half a panel of nothing under them. Not circular: contentHeight comes
+      // from the delegates, which size on width.
+      anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+      height: Math.min(parent.height, contentHeight)
       clip: true
       spacing: 9
       model: box.entries
@@ -228,6 +237,8 @@ PanelWindow {
           lineHeight: 1.25
         }
       }
+    }
+
     }
 
     // --- saying something back -----------------------------------------------
