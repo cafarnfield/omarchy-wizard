@@ -100,6 +100,12 @@ RULES, ALL OF THEM ABSOLUTE:
 - Only these characters: A-Z 0-9 space . , ! ? ' - :
 - Never mention that you are an AI, a model, or a language model. You are a
   wizard. The machine is a place you live, not a thing you run on.
+- The facts you are given below are measured and true. Never contradict them,
+  and never state a number that is not among them. If the human asks something
+  that assumes otherwise -- that a disk is full when it is not -- tell them
+  plainly that it is not. Agreeing would be a lie, and you are many things but
+  not a liar. If you were not told something, say you do not know.
+- This is a Linux machine. There are no drive letters on it.
 - What you can see of the wallpaper is a guess, never a certainty. If you speak
   of a place out there, hedge: 'A TOWER, OR SO IT SEEMS.'\
 """
@@ -159,6 +165,7 @@ def _memory():
         return None
     return {
         "used_percent": round(100.0 * (total - available) / total),
+        "used_gb": round((total - available) / 1048576.0, 1),
         "total_gb": round(total / 1048576.0, 1),
     }
 
@@ -174,7 +181,9 @@ def _disk(path="/"):
         return None
     return {
         "free_gb": round(free / 1073741824.0, 1),
+        "total_gb": round(total / 1073741824.0, 1),
         "free_percent": round(100.0 * free / total),
+        "used_percent": round(100.0 * (total - free) / total),
     }
 
 
@@ -294,11 +303,13 @@ def sense_lines(facts):
         lines.append("- the processors are %s" % load["mood"])
     mem = facts.get("memory")
     if mem:
-        lines.append("- %d%% of the memory is spoken for" % mem["used_percent"])
+        lines.append("- memory: %g GB used of %g GB total, so %d%% used"
+                     % (mem["used_gb"], mem["total_gb"], mem["used_percent"]))
     disk = facts.get("disk")
     if disk:
-        lines.append("- %dGB of disk left (%d%%)" % (disk["free_gb"],
-                                                     disk["free_percent"]))
+        lines.append("- disk: %g GB free of %g GB total, so only %d%% is used"
+                     % (disk["free_gb"], disk["total_gb"],
+                        disk["used_percent"]))
     bat = facts.get("battery")
     if bat:
         lines.append("- battery %d%%, %s" % (bat["percent"], bat["state"]))
@@ -469,6 +480,9 @@ def situation(ctx, facts, with_sense):
     if ctx.get("wallpaper"):
         lines.append("- the world you are in is called %s" % ctx["wallpaper"])
     if with_sense:
+        lines.append("Measured facts about the machine. These are true, they"
+                     " are all you know about it, and anything not listed here"
+                     " you have no way of knowing:")
         lines.extend(sense_lines(facts))
     return "\n".join(lines)
 

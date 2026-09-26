@@ -219,6 +219,31 @@ the bubble is still up.
 He is rate-limited to one considered thought every six seconds, so a busy
 minute on the shoreline does not turn into a minute of continuous inference.
 
+### He is not a monitoring tool
+
+He will tell you the disk is full. It is a line in `Brain.js`, it has been
+there since the first commit, and it means nothing at all -- like everything
+in those lists, it fires at random.
+
+The generated lines are different, because they are shown real figures and
+can therefore look like measurements. **Do not treat them as measurements.**
+A 3b model quotes a number correctly and then draws the opposite conclusion
+from it in the same sentence:
+
+> **AM I RUNNING OUT OF MEMORY**
+> YES. 12.2 GB USED OF 31.2 GB TOTAL. NOT QUITE USED.
+
+The prompt does what it can -- the facts are labelled as true, every figure
+carries its unit and direction, he is told to correct a false premise rather
+than agree with it, and to admit he was told nothing about anything not
+listed. That stopped him inventing drive letters and GPU temperatures. It did
+not make him able to reason about the numbers, and no wording will.
+
+A larger model is markedly better here if you care; `{"model":"qwen2.5:7b"}`
+costs a few seconds a reply, which the background pool hides for everything
+except questions you ask directly. But the honest position is that he is
+flavour. Run `df -h` like everyone else.
+
 ### What he is told about your machine
 
 With `sense` on (the default) he is told the time and day, uptime, CPU load,
