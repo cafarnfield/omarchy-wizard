@@ -65,11 +65,11 @@ PanelWindow {
 
   anchors {
     right: true
-    bottom: true
+    top: true
   }
   margins {
     right: 16
-    bottom: 16
+    top: 16
   }
   implicitWidth: 430
   implicitHeight: 560
