@@ -180,8 +180,8 @@ PanelWindow {
     }
 
     // --- the transcript ------------------------------------------------------
-    Item {
-      id: logArea
+    ListView {
+      id: log
       anchors {
         top: rule.bottom
         left: parent.left
@@ -189,27 +189,22 @@ PanelWindow {
         bottom: box.canType ? footer.top : parent.bottom
         margins: 10
       }
-
-    ListView {
-      id: log
-      // Sit on the floor and grow upwards, the way a conversation does. A
-      // plain fill would leave the first few lines stranded at the top with
-      // half a panel of nothing under them. Not circular: contentHeight comes
-      // from the delegates, which size on width.
-      anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-      height: Math.min(parent.height, contentHeight)
       clip: true
       spacing: 9
-      model: box.entries
       boundsBehavior: Flickable.StopAtBounds
 
-      // New lines arrive at the bottom, and the bottom is where you are
-      // reading, so follow it -- unless you have scrolled up to read something
-      // older, in which case leave you where you are.
-      property bool pinned: true
-      onContentYChanged: pinned = (contentHeight - contentY - height) < 40
-      onCountChanged: if (pinned) positionViewAtEnd()
-      Component.onCompleted: positionViewAtEnd()
+      // Laid out bottom to top, over a reversed list, so the newest line is at
+      // index 0 and sits on the floor of the panel. Nothing has to scroll: a
+      // new line simply appears where you are already looking, and short
+      // conversations rest at the bottom instead of floating at the top.
+      //
+      // The previous version chased the end with positionViewAtEnd() and was
+      // always a step behind, because these delegates word-wrap: their heights
+      // are not known at the moment the count changes, so it scrolled to where
+      // the content used to end. Laying it out this way removes the problem
+      // rather than trying to time around it.
+      verticalLayoutDirection: ListView.BottomToTop
+      model: box.entries.slice().reverse()
 
       ScrollBar.vertical: ScrollBar {
         policy: ScrollBar.AsNeeded
@@ -250,8 +245,6 @@ PanelWindow {
           lineHeight: 1.25
         }
       }
-    }
-
     }
 
     // --- saying something back -----------------------------------------------
