@@ -47,7 +47,7 @@ Item {
 
   // He can borrow a voice from a model running on this machine. Loopback
   // Ollama or nothing -- there is no remote option and no key to hold. Every
-  // one of these degrades to the fixed lists in Brain.js, so the defaults are
+  // one of these leaves him silent rather than broken, so the defaults are
   // safe on a box that has never heard of Ollama.
   property bool useOracle: true        // may he think out loud
   property string oracleModel: "llama3.2:3b"
@@ -128,7 +128,9 @@ Item {
   // put in his mouth out of order.
   property int bubbleStamp: 0
   property int voiceSerial: -1
-  property int voiceStamp: -1
+  property string voiceBeat: ""
+  property real voiceFor: 3.2
+  property real voiceUntil: 0
   property int thinkPhase: 0
 
   // Everything anyone has said this summoning, for the chat box to show. The
@@ -302,7 +304,7 @@ Item {
     opened = true
     leaving = false
     enterIdle(Brain.between(0.8, 1.6))
-    say(Brain.pick(Brain.GREETINGS, ""), 2.6)
+    voice("greet", 2.6)
     rescan("")
   }
 
@@ -380,48 +382,52 @@ Item {
     return out.join("\n")
   }
 
-  // Say the static line now, and ask the model for a better one.
+  // Ask for something to say about what is happening, and say it when it
+  // arrives -- a second or so later, because the model is thinking about it.
   //
-  // He speaks immediately off the list, exactly as he always did, so nothing
-  // ever happens to him without an instant remark. If a generated line comes
-  // back while that bubble is still up and he is still in the same moment, it
-  // takes its place -- which reads as him settling on the thought rather than
-  // as two separate remarks.
+  // There is no line to fall back on any more. Every word he speaks is written
+  // for the moment he is in, and without a model running he simply does not
+  // speak: he walks, fishes, sleeps and visits castles in silence. The pause
+  // before he comments reads as him considering it, which suits him.
   //
-  // All of it is best-effort. No model, a slow model, or a model that answers
-  // after the bubble has gone all end the same way: the static line he already
-  // said is the line he said.
-  function voice(list, beat, seconds) {
-    const fallback = Brain.pick(list, lastPhrase)
-    lastPhrase = fallback
-    say(fallback, seconds)
-    voiceSerial = mind.requestBeat(beat)
-    voiceStamp = bubbleStamp
-    return fallback
+  // `extra` carries whatever the beat needs the model to know -- the item he
+  // has just picked up, the shape he thinks he can make out.
+  function voice(beat, seconds, extra) {
+    const serial = mind.requestBeat(beat, extra)
+    if (serial < 0)
+      return false
+    voiceSerial = serial
+    voiceBeat = beat
+    voiceFor = seconds > 0 ? seconds : 3.2
+    // A line arriving long after its moment is a line about something he has
+    // already stopped doing, so it is dropped rather than spoken late.
+    voiceUntil = clock + 7
+    return true
   }
 
-  // Ask for a better line for something already said, without choosing the
-  // static line here -- for the few places that pick their own.
-  function revoice(beat) {
-    voiceSerial = mind.requestBeat(beat)
-    voiceStamp = bubbleStamp
+  // Death gets his own bubble, pale on dark, and now his own voice behind it.
+  function speakAsDeath(text) {
+    const body = String(text || "").trim()
+    if (body === "" || !deathHere || deathMood !== "pet")
+      return
+    deathLines = Brain.wrap(body, 16)
+    logLine("death", body, false)
+    deathSpeech.restart()
   }
 
   function speakGenerated(beat, serial, text) {
-    if (serial !== voiceSerial || bubbleStamp !== voiceStamp)
+    if (serial !== voiceSerial)
       return
     voiceSerial = -1
     if (leaving || mood === "away" || deathLines.length > 0)
       return
-    if (clock >= bubbleUntil)
+    if (clock > voiceUntil)
       return
     const body = String(text || "").trim()
-    if (body === "" || body === lastPhrase)
+    if (body === "")
       return
     lastPhrase = body
-    // Hold it for whatever is left of the original bubble, or long enough to
-    // read a longer line, whichever is the greater.
-    say(body, Math.max(bubbleUntil - clock, 1.6 + body.length * 0.075), "replace")
+    say(body, Math.max(voiceFor, 1.6 + body.length * 0.075))
   }
 
   // What he can see of his own circumstances, handed to the model with every
@@ -456,7 +462,8 @@ Item {
     if (leaving || mood === "away")
       return "away"
     if (!mind.ready) {
-      say(Brain.pick(Brain.NO_ORACLE, ""), 3.4)
+      // Nothing canned left to say, so he says nothing at all. The chat box
+      // header is where the reason lives.
       return mind.status === "off" ? "disabled" : "unavailable"
     }
     if (!mind.converse(body))
@@ -659,7 +666,7 @@ Item {
     if (leaving || mood === "away")
       return
     if (afloat) {
-      voice(Brain.WATER, "water", 3.0)
+      voice("water", 3.0)
       splash(8)
       return
     }
@@ -675,7 +682,7 @@ Item {
       lastPhrase = pooled
       say(pooled, 3.6)
     } else {
-      voice(Brain.PHRASES, "poke", 3.6)
+      voice("poke", 3.6)
     }
     spawn(14, orbX, orbY, [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["Y"]], 150, 0.75)
   }
@@ -687,7 +694,7 @@ Item {
     vy = 0
     abandonErrand()
     if (Math.random() < 0.5)
-      say(Brain.pick(Brain.GRUMBLES, ""), 1.8)
+      voice("grumble", 1.8)
   }
 
   function drop() {
@@ -712,7 +719,7 @@ Item {
     if (leaving)
       return
     leaving = true
-    say(Brain.pick(Brain.FAREWELLS, ""), 1.0)
+    voice("farewell", 1.0)
     spawn(26, fx + spriteW / 2, fy + spriteH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["P"]], 190, 0.7)
     leaveTimer.restart()
@@ -744,7 +751,7 @@ Item {
     moodFor = 0.7
     splash(10)
     if (Math.random() < 0.6)
-      voice(Brain.WATER, "water", 2.4)
+      voice("water", 2.4)
   }
 
   function beginBeach() {
@@ -787,30 +794,30 @@ Item {
       waterEvent = "tentacle"
       eventFor = 5.0
       eventX = centerX - side * spriteW * 0.95
-      voice(Brain.TENTACLE, "tentacle", 3.4)
+      voice("tentacle", 3.4)
       splash(8)
     } else if (roll < 0.44) {
       waterEvent = "fishing"
       eventFor = Brain.between(8, 13)
-      voice(Brain.FISHING, "fishing", 3.0)
+      voice("fishing", 3.0)
     } else if (roll < 0.58) {
       waterEvent = "overboard"
       eventFor = 6.5
       eventX = centerX + side * spriteW * 0.5
-      voice(Brain.OVERBOARD, "overboard", 3.6)
+      voice("overboard", 3.6)
       splash(22)
     } else if (roll < 0.80) {
       waterEvent = "fishjump"
       eventFor = 1.7
       eventX = centerX + (Math.random() < 0.5 ? -1 : 1) * spriteW * Brain.between(0.7, 1.6)
       if (Math.random() < 0.5)
-        say(Brain.pick(Brain.LAKE_ODD, ""), 2.4)
+        voice("lakeodd", 2.4)
     } else {
       waterEvent = "shadow"
       eventFor = 4.5
       eventX = centerX - side * spriteW * 1.8
       if (Math.random() < 0.6)
-        say(Brain.pick(Brain.LAKE_ODD, ""), 2.6)
+        voice("lakeodd", 2.6)
     }
     return waterEvent
   }
@@ -818,7 +825,7 @@ Item {
   function endWaterEvent() {
     if (waterEvent === "fishing") {
       const lucky = Math.random() < 0.5 && inventory.indexOf("fish") === -1
-      say(lucky ? Brain.FISHING_LUCK[0] : Brain.pick(Brain.FISHING_LUCK.slice(1), ""), 3.0)
+      voice(lucky ? "fishluck" : "fishnoluck", 3.0)
       if (lucky)
         acquire("fish")
     } else if (waterEvent === "overboard") {
@@ -831,7 +838,7 @@ Item {
           if (inventory[i] !== drop)
             kept.push(inventory[i])
         inventory = kept
-        say("MY " + drop.toUpperCase() + "!", 2.8)
+        voice("droplost", 2.8, { item: drop })
       }
     }
     waterEvent = ""
@@ -898,14 +905,14 @@ Item {
       landFor = Brain.between(26, 46)
       landX = centerX + (facing > 0 ? spriteW * 0.85 : -spriteW * 0.85)
       nextBrew = landClock + Brain.between(3, 6)
-      voice(Brain.STUDY, "study", 3.4)
+      voice("study", 3.4)
       enterIdle(landFor)
       turnAround(landX > centerX ? 1 : -1)
     } else if (pick < 0.72) {
       landEvent = "campfire"
       landFor = Brain.between(16, 26)
       landX = centerX + (facing > 0 ? spriteW * 0.75 : -spriteW * 0.75)
-      voice(Brain.FIRESIDE, "fire", 3.2)
+      voice("fire", 3.2)
       enterIdle(landFor)
       turnAround(landX > centerX ? 1 : -1)
       // She claims the warm spot, obviously.
@@ -915,7 +922,7 @@ Item {
     } else if (hasCat) {
       landEvent = "attention"
       landFor = Brain.between(5, 8)
-      voice(Brain.CAT_WANTS, "cat", 3.2)
+      voice("cat", 3.2)
       enterIdle(landFor)
     } else {
       return "no"
@@ -945,7 +952,7 @@ Item {
                 [Sprites.PALETTE["V"] || Sprites.PALETTE["C"], Sprites.PALETTE["C"],
                  Sprites.PALETTE["A"]], 70, 0.9)
           if (Math.random() < 0.3) {
-            voice(Brain.BREW_LUCK, "brew", 3.2)
+            voice("brew", 3.2)
             if (Math.random() < 0.5)
               acquire(["crystal", "book", "mushroom"][Math.floor(Math.random() * 3)])
           }
@@ -953,7 +960,7 @@ Item {
                    && Math.abs(catX - fx) < spriteW * 2.2) {
           transformCat()
         } else {
-          voice(Brain.STUDY, "study", 3.2)
+          voice("study", 3.2)
           if (Math.random() < 0.4) {
             mood = "cast"
             moodClock = 0
@@ -992,7 +999,7 @@ Item {
     catTask = ""
     catMood = "sit"
     catIdle = "sit"
-    voice(Brain.TRANSFORM, "transform", 3.2)
+    voice("transform", 3.2)
     spawn(16, catX + catW / 2, catFootY - catH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["L"]], 110, 0.8)
   }
@@ -1007,7 +1014,7 @@ Item {
     catIdle = "arch"
     catIdleClock = 0
     catIdleFor = Brain.between(3, 5)
-    voice(Brain.REVERT, "revert", 3.0)
+    voice("revert", 3.0)
   }
 
   readonly property string tableFrame:
@@ -1022,7 +1029,7 @@ Item {
     moodClock = 0
     animClock = 0
     moodFor = 1.4
-    voice(Brain.CRYSTAL, "crystal", 3.4)
+    voice("crystal", 3.4)
     spawn(18, orbX, orbY,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["L"]], 140, 0.9)
     if (Math.random() < 0.4)
@@ -1077,7 +1084,7 @@ Item {
     // far shore to reach it rather than staying on the near bank.
     waterTargetY = Math.max(waterFar, Math.min(waterNear, Number(choice.y)))
     if (String(choice.kind) === "structure")
-      voice(Brain.sightsFor(String(choice.shape || "keep")), "sight", 3.2)
+      voice("sight", 3.2, { shape: String(choice.shape || "keep") })
     enterWalk(0)
   }
 
@@ -1144,7 +1151,7 @@ Item {
     moodClock = 0
     animClock = 0
     moodFor = 1.1
-    voice(Brain.LAMPS, "lamp", 3.0)
+    voice("lamp", 3.0)
     spawn(10, orbX, orbY, [Sprites.PALETTE["Y"], Sprites.PALETTE["A"]], 110, 0.7)
     if (Math.random() < 0.45)
       acquire("crystal")
@@ -1177,7 +1184,7 @@ Item {
     moodFor = 1.0
     spawn(24, centerX, fy + spriteH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["Y"]], 130, 0.9)
-    voice(Brain.RETURNS, "return", 3.4)
+    voice("return", 3.4)
     if (Math.random() < 0.7)
       acquire(["key", "book", "crystal", "lantern"][Math.floor(Math.random() * 4)])
   }
@@ -1192,8 +1199,7 @@ Item {
     inventory = next
     holding = name
     holdTimer.restart()
-    say(Brain.FINDS[name] || "A FIND.", 3.0)
-    revoice("find")
+    voice("find", 3.0, { item: name })
   }
 
   function useItem(name) {
@@ -1201,7 +1207,7 @@ Item {
       return "unknown"
     holding = name
     holdTimer.restart()
-    say(Brain.USES[name] || "HMM.", 3.0)
+    voice("use", 3.0, { item: name })
 
     if (name === "lantern")
       spawn(8, orbX, orbY, [Sprites.PALETTE["Y"]], 70, 0.8)
@@ -1459,7 +1465,7 @@ Item {
         spawn(8, catX + catW / 2, catFootY - catH / 2,
               [Sprites.PALETTE["G"], Sprites.PALETTE["x"] || Sprites.PALETTE["D"]], 70, 0.6)
         if (Math.random() < 0.65)
-          voice(Brain.CAT_APPEARS, "catappears", 3.0)
+          voice("catappears", 3.0)
         return
       }
     } else {
@@ -1574,7 +1580,7 @@ Item {
       dropped = lost
       droppedX = fx + spriteW * 0.5 + (facing > 0 ? 1 : -1) * spriteW * 0.4
       droppedUntil = clock + 9
-      say("SOOT. THAT WAS MY " + lost.toUpperCase() + ".", 3.2)
+      voice("catsteal", 3.2, { item: lost })
       startCatTask("underfoot", Brain.between(3, 5), droppedX - catW / 2)
     } else {
       const crystals = poisOfKind("crystal")
@@ -1633,8 +1639,7 @@ Item {
           const gift = Math.random() < 0.5 ? "fish" : "mushroom"
           if (inventory.indexOf(gift) === -1) {
             acquire(gift)
-            say(gift === "fish" ? "SHE BROUGHT ME A FISH."
-                                : "THANK YOU. I THINK.", 3.2)
+            voice("gift", 3.2, { item: gift })
           }
         }
       }
@@ -1646,7 +1651,7 @@ Item {
         if (mood === "walk")
           enterIdle(Brain.between(1.5, 3.0))
         if (Math.random() < dt * 0.5)
-          say("YOU ARE STANDING ON MY FOOT.", 2.6)
+          voice("underfoot", 2.6)
       }
       if (catTaskClock >= catTaskFor)
         catTask = ""
@@ -1802,10 +1807,7 @@ Item {
         deathMood = "pet"
         deathClock = 0
         deathFor = Brain.between(9, 14)
-        const saying = Brain.pick(Brain.DEATH_LINES, "")
-        deathLines = Brain.wrap(saying, 16)
-        logLine("death", saying, false)
-        deathSpeech.restart()
+        mind.requestDeath()
         if (Math.random() < 0.6)
           replyTimer.restart()
       } else {
@@ -2226,7 +2228,7 @@ Item {
         animClock = 0
         moodFor = sleepFor
         if (catInBed)
-          voice(Brain.BEDTIME, "bedtime", 2.8)
+          voice("bedtime", 2.8)
         else
           say("Z Z Z", Math.min(sleepFor, 8))
       }
@@ -2327,7 +2329,7 @@ Item {
     interval: 2600
     onTriggered: {
       if (root.deathHere && root.mood !== "away")
-        root.voice(Brain.LANDIS_TO_DEATH, "death", 3.2)
+        root.voice("death", 3.2)
     }
   }
 
@@ -2364,7 +2366,8 @@ Item {
       root.say(text, Math.max(4.0, 1.6 + text.length * 0.085))
       root.lastPhrase = text
     }
-    onReplyFailed: () => root.say(Brain.pick(Brain.NO_ORACLE, ""), 3.0)
+    onReplyFailed: () => root.say("...", 1.6, "quiet")
+    onDeathReady: (text) => root.speakAsDeath(text)
   }
 
   // Somewhere his words stay long enough to be read, and somewhere to type
@@ -2871,7 +2874,7 @@ Item {
               if (root.inventory.length > 0)
                 root.useItem(root.inventory[Math.floor(Math.random() * root.inventory.length)])
               else
-                root.say("MY POCKETS ARE EMPTY.", 2.4)
+                root.voice("pockets", 2.4)
             } else if (mouse.button === Qt.RightButton) {
               root.dismiss()
             }

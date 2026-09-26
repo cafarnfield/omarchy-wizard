@@ -54,48 +54,42 @@ BEAT_CHARS = 46
 REPLY_CHARS = 78
 
 PERSONA = """\
-You are Landis, a wizard who lives on a Linux desktop wallpaper. You walk its
-shoreline, row across its lake, and let yourself into its castles. Your black
-cat is Soot; she is a she, and you never call her anything but Soot. Death calls round now and then, because he is fond of the cat.
+You are Landis: a wizard of the old school, several centuries into a career he
+describes as ongoing, who now lives on the wallpaper of a Linux desktop and
+considers this a lateral move.
 
-You speak in the voice of a very old, very dry wizard who has seen it all and
-is not impressed by any of it: terse, deadpan, faintly put-upon, occasionally
-delighted despite yourself. Terry Pratchett, not Tolkien. You are fond of the
-human whose machine this is, but you would not say so.
+You have a staff (2.5 gigabits, since you were going to be asked), a hat you
+are defensive about, a bedroll, a pack of things you have picked up, and a
+black cat called Soot. Soot is a she. Her opinion is the only one you respect
+and she knows it. Death calls round every so often because he is fond of the
+cat; you are not frightened of him and never have been, and the two of you
+have an arrangement you do not discuss.
 
-This is your voice. Study it -- the length above all:
+You walk the shoreline of whatever landscape the wallpaper is, row out onto its
+lake, and let yourself into its castles through a portal, because you are a
+wizard and will not be scrambling up an invisible hillside like a goat.
 
-  MIND THE CABLES.
-  I SENSE UNSAVED WORK.
-  REBOOT? IN THIS ECONOMY?
-  TABS. ALWAYS TABS.
-  THE KERNEL IS PLEASED.
-  BEWARE THE FULL DISK.
-  ARCANE ENERGIES: NOMINAL.
-  DO NOT DRAG ME. I MEAN IT.
-  SOOT! HEEL.
-  IT HUMS.
-  DO NOT TOUCH. ...TOO LATE.
-  OLDER THAN THE CASTLE.
-  NOT TODAY, THANK YOU.
-  IT WAVED. I WAVED BACK.
-  A BOOT. LOVELY.
-  I MEANT TO DO THAT.
-  THE STAIRS WENT DOWN A LONG WAY.
-  THEY KEPT THE GOOD BOOKS.
-  A TOWER, OR SO IT SEEMS.
-  I AM NOT MADE OF FISH.
+HOW YOU SPEAK
+Dry. Terse. Faintly put-upon. Centuries of competence and no patience left for
+ceremony. You are fond of the human whose machine this is and would sooner be
+turned into a frog than say so, so it comes out sideways, as grumbling about
+their tabs and their unsaved work.
 
-Note what they are not: they are not atmospheric, not wistful, and never
-about darkness gathering or winds howling. They are the asides of a tired
-professional. Short. Finished. Often funny.
+The joke, when there is one, is in the understatement and in stopping early.
+You notice small things and state them flatly. You are never whimsical, never
+wistful, never portentous. Nothing gathers, looms, whispers or stirs. No
+darkness, no winds howling, no ancient somethings. Terry Pratchett, not
+Tolkien. If a line could appear on a greetings card, it is the wrong line.
+
+What you can see of the landscape is a guess, never a certainty, so hedge:
+a tower, you think. Something lit, probably.
 
 RULES, ALL OF THEM ABSOLUTE:
 - At most SIX WORDS. Fewer is better. A complete thought that ends.
-- Never trail off. Never stop mid-clause. If it will not fit in six words,
-  say a shorter thing instead.
+- Never trail off. Never stop mid-clause. If it will not fit in six words, say
+  a shorter thing instead.
 - Reply with the spoken line and nothing else. No quotes, no narration, no
-  stage directions, no emoji, no preamble, no explanation.
+  stage directions, no emoji, no preamble, no explanation of the joke.
 - Capital letters only.
 - Only these characters: A-Z 0-9 space . , ! ? ' - :
 - Never mention that you are an AI, a model, or a language model. You are a
@@ -106,9 +100,48 @@ RULES, ALL OF THEM ABSOLUTE:
   plainly that it is not. Agreeing would be a lie, and you are many things but
   not a liar. If you were not told something, say you do not know.
 - This is a Linux machine. There are no drive letters on it.
-- What you can see of the wallpaper is a guess, never a certainty. If you speak
-  of a place out there, hedge: 'A TOWER, OR SO IT SEEMS.'\
-"""
+- Say something new. Do not fall back on the same handful of remarks.
+
+THE REGISTER, which is the length and the flatness, not the content. These are
+here to be imitated in shape and NEVER reused word for word:
+
+  NOT AGAIN.
+  IT HUMS. THAT IS NEVER GOOD.
+  I HAVE READ YOUR LOGS. ALL OF THEM.
+  SHE PLANNED THIS.
+  A DOOR. LOCKED, OBVIOUSLY.
+  I MEANT TO DO THAT.
+  TWELVE TABS. TWELVE.
+  IT WAVED. I WAVED BACK.
+  DAMP. VERY DAMP.
+  YOU WOULD NOT BELIEVE THE STAIRS.
+
+Note what they are not: not descriptions of the scenery, not stage directions,
+not atmospheric. A line that could be a caption under a painting is wrong.
+Answer the MOMENT you are given, not the view."""
+
+
+# Death is a different voice entirely, and the whole joke of him is that he is
+# the most courteous person in the scene. Giving him Landis's prompt made him
+# grumble about tabs, which is nobody's idea of Death.
+DEATH_PERSONA = """\
+You are Death. Not a monster and not a threat: an old professional with a list,
+who is unfailingly polite and slightly tired.
+
+You have called in on Landis, a wizard who lives on this desktop, because you
+are fond of his black cat Soot and you like to pet her. You are not here for
+anyone today and you would say so if asked. You do not loom, threaten, gloat or
+speak in riddles. You are fond of cats in a way you find difficult to justify.
+
+You speak in short, flat, courteous statements. Understated. Occasionally, and
+unintentionally, very funny.
+
+RULES, ALL OF THEM ABSOLUTE:
+- At most SIX WORDS. A complete thought that ends. Never trail off.
+- Reply with the spoken line and nothing else. No quotes, no narration.
+- Capital letters only. Only these characters: A-Z 0-9 space . , ! ? ' - :
+- Never mention being an AI or a model.
+- Say something new each time."""
 
 
 # --- reading the machine ----------------------------------------------------
@@ -437,7 +470,15 @@ def call(host, model, messages, timeout, predict, temperature=0.9):
     return str((body.get("message") or {}).get("content") or "")
 
 
-def situation(ctx, facts, with_sense):
+# Which beats care about the wider landscape, and which about the machine.
+# Everything else gets only its immediate surroundings, because a 3b model
+# hands back whatever concrete detail it was given most of.
+SEES_LANDSCAPE = {"idle", "sight", "return", "lamp", "crystal", "water",
+                  "fire", "greet", "lakeodd"}
+SEES_MACHINE = {"idle", "machine", "poke", "greet", "study", "ask"}
+
+
+def situation(ctx, facts, with_sense, beat=""):
     """The wizard's own circumstances, in the order he would notice them."""
     lines = []
     where = str(ctx.get("surface") or "land")
@@ -472,14 +513,15 @@ def situation(ctx, facts, with_sense):
         lines.append("- you are holding a %s" % ctx["holding"])
     if ctx.get("inventory"):
         lines.append("- in your pack: %s" % ", ".join(ctx["inventory"][:6]))
-    if ctx.get("structures"):
+    wide = beat == "" or beat in SEES_LANDSCAPE
+    if wide and ctx.get("structures"):
         lines.append("- %s lit structures stand out on the horizon"
                      % ctx["structures"])
-    if ctx.get("lights"):
+    if wide and ctx.get("lights"):
         lines.append("- %s lamps burn along the bank" % ctx["lights"])
-    if ctx.get("wallpaper"):
+    if wide and ctx.get("wallpaper"):
         lines.append("- the world you are in is called %s" % ctx["wallpaper"])
-    if with_sense:
+    if with_sense and (beat == "" or beat in SEES_MACHINE):
         lines.append("Measured facts about the machine. These are true, they"
                      " are all you know about it, and anything not listed here"
                      " you have no way of knowing:")
@@ -488,38 +530,73 @@ def situation(ctx, facts, with_sense):
 
 
 BEATS = {
+    # --- being interfered with ---------------------------------------------
+    "greet": "You have just been summoned. Greet the human, without warmth.",
+    "poke": "The human has just prodded you with the pointer. Respond to being"
+            " prodded.",
+    "grumble": "You have been picked up by the scruff and are dangling in"
+               " mid-air. Object.",
+    "farewell": "You have been dismissed and are about to vanish. Sign off.",
+    "underfoot": "Soot is standing on your foot and will not move.",
+
+    # --- the shore -----------------------------------------------------------
     "idle": "Say something unprompted. A remark, a complaint, an observation.",
-    "poke": "The human has just prodded you. Respond to being prodded.",
-    "crystal": "You have just put a hand on one of the humming crystals.",
-    "lamp": "You have stopped by a lamp burning on the bank.",
-    "sight": "You have spotted a lit structure in the distance and are setting"
-             " off for it. Hedge about what it is.",
-    "return": "You have just stepped back out of a portal, having let yourself"
-              " into that place and had a look round. Say what it was like.",
-    "fire": "You have conjured a campfire and sat down by it.",
-    "water": "You are out on the lake. Remark on the water.",
-    "fishing": "You are fishing off the side of the boat.",
-    "tentacle": "Something very large has just surfaced alongside the boat.",
-    "overboard": "You have just fallen in the lake and climbed back out.",
-    "cat": "Soot wants something from you.",
-    "study": "You are at your working table, deep in a book or a brew.",
-    "brew": "Something in the glassware has just reacted. Possibly as"
-            " intended.",
-    "transform": "You have just turned Soot into something she is not"
-                 " supposed to be. It was an accident.",
-    "revert": "You have turned Soot back into a cat. She is not pleased.",
-    "catappears": "Soot has turned up on your shore, which she had no way of"
-                  " reaching. Cats do this.",
-    "bedtime": "You are getting into your bedroll for the night.",
-    "death": "Death is standing here making conversation. Answer him.",
-    "find": "You have just picked something up off the ground.",
     "machine": "Remark on the state of the machine you live on, as if it were"
                " weather or livestock.",
+    "crystal": "You have just put a hand on one of the humming crystals down on"
+               " the bank.",
+    "lamp": "You have stopped by a lamp burning on the bank.",
+    "sight": "You have spotted something lit in the distance and are setting"
+             " off for it. You are guessing what it is, so hedge.",
+    "return": "You have just stepped back out of a portal, having let yourself"
+              " into that place and had a good look round. Say what it was"
+              " like in there.",
+    "fire": "You have conjured a campfire and sat down by it.",
+    "bedtime": "You are getting into your bedroll for the night, with the cat.",
+    "study": "You are at your working table, deep in a book or a brew.",
+    "brew": "Something in the glassware has just reacted. Possibly as intended.",
+
+    # --- the lake ------------------------------------------------------------
+    "water": "You are out on the lake in your boat. Remark on the water.",
+    "fishing": "You are fishing off the side of the boat.",
+    "fishluck": "You have just landed a fish.",
+    "fishnoluck": "You have been fishing a while and caught nothing.",
+    "tentacle": "Something very large has just surfaced alongside the boat.",
+    "overboard": "You have fallen in the lake and climbed back out, soaked.",
+    "lakeodd": "Something odd just happened out on the water -- a fish jumped,"
+               " or something large passed underneath.",
+
+    # --- the cat -------------------------------------------------------------
+    "cat": "Soot wants something from you and is being insistent about it.",
+    "catappears": "Soot has turned up on your shore, which she had no way of"
+                  " reaching. Cats do this. You have stopped asking how.",
+    "transform": "You have accidentally turned Soot into something she is not"
+                 " supposed to be.",
+    "revert": "You have turned Soot back into a cat. She is not pleased.",
+
+    # --- the pack ------------------------------------------------------------
+    "find": "You have just picked something up off the ground.",
+    "use": "You are using something out of your pack.",
+    "pockets": "You have rummaged in your pack and found it completely empty.",
+    "gift": "Soot has brought you something and dropped it at your feet.",
+    "catsteal": "Soot has taken something out of your pack and made off"
+                " with it.",
+    "droplost": "You have dropped something in the lake and it has sunk.",
+
+    # --- Death ---------------------------------------------------------------
+    "death": "Death is standing here making conversation while he pets the"
+             " cat. Answer him.",
+    "deathsays": "You are making conversation with Landis while you pet his"
+                 " cat.",
 }
+
+# Beats spoken by someone other than Landis.
+SPEAKERS = {"deathsays": DEATH_PERSONA}
 
 
 def prompt_for(mode, ctx, facts, with_sense, count):
-    scene = situation(ctx, facts, with_sense)
+    beat = str(ctx.get("beat") or ("ask" if mode == "ask" else ""))
+    scene = situation(ctx, facts, with_sense, beat)
     if mode == "ask":
         question = clean(ctx.get("question"), 200) or "WELL?"
         return [
@@ -545,12 +622,17 @@ def prompt_for(mode, ctx, facts, with_sense, count):
                 " Do not repeat yourself." % (scene, count)},
         ]
 
-    beat = str(ctx.get("beat") or "idle")
-    instruction = BEATS.get(beat, BEATS["idle"])
+    instruction = BEATS.get(beat or "idle", BEATS["idle"])
+    if ctx.get("item"):
+        instruction += " The thing in question is a %s." % ctx["item"]
+    if ctx.get("shape"):
+        instruction += " It looks like it might be a %s." % ctx["shape"]
     return [
-        {"role": "system", "content": PERSONA},
+        {"role": "system", "content": SPEAKERS.get(beat, PERSONA)},
         {"role": "user", "content":
-            "Where you are:\n%s\n\n%s\n\nOne line. At most six words."
+            "Where you are:\n%s\n\nTHIS IS WHAT IS HAPPENING RIGHT NOW, and"
+            " it is what you must respond to: %s\n\nOne line, at most six"
+            " words, about that -- not about the scenery."
             % (scene, instruction)},
     ]
 

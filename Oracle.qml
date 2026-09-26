@@ -55,13 +55,14 @@ Item {
   property var contextProvider: null
 
   signal beatReady(string beat, int serial, string text)
+  signal deathReady(string text)
   signal replyReady(string text)
   signal replyFailed()
 
   property int beatSerial: 0
   property string pendingBeat: ""
   property int pendingSerial: 0
-  property int beatGapMs: 6000         // shortest gap between generated beats
+  property int beatGapMs: 2000         // shortest gap between generated beats
   property real lastBeatAt: 0
 
   readonly property var baseArgs: [
@@ -212,7 +213,7 @@ Item {
   // has not moved on, `beatReady` lets it swap the words out.
   //
   // Returns the serial the answer will carry, or -1 if nothing was asked.
-  function requestBeat(beat) {
+  function requestBeat(beat, extra) {
     if (!active || !ready || beatProc.running)
       return -1
     // A wizard who remarks on everything would have the machine generating
@@ -226,9 +227,44 @@ Item {
     beatSerial += 1
     pendingBeat = beat
     pendingSerial = beatSerial
-    beatProc.command = argsFor("beat", ["--ctx", contextJson({ beat: beat })])
+    let ctx = { beat: beat }
+    if (extra)
+      for (const key in extra)
+        ctx[key] = extra[key]
+    beatProc.command = argsFor("beat", ["--ctx", contextJson(ctx)])
     beatProc.running = true
     return beatSerial
+  }
+
+  // Death speaks in his own voice, from his own prompt, so he gets his own
+  // process rather than queueing behind whatever Landis is thinking about.
+  function requestDeath() {
+    if (!active || !ready || deathProc.running)
+      return false
+    deathProc.command = argsFor("beat", ["--ctx",
+      contextJson({ beat: "deathsays" })])
+    deathProc.running = true
+    return true
+  }
+
+  Process {
+    id: deathProc
+    stderr: StdioCollector {
+      onStreamFinished: oracle.noteError("death", text)
+    }
+    stdout: StdioCollector {
+      onStreamFinished: {
+        const line = String(text || "").trim()
+        if (line === "")
+          return
+        oracle.served += 1
+        oracle.deathReady(line)
+      }
+    }
+    onExited: (code) => {
+      if (code !== 0)
+        oracle.noteFailure()
+    }
   }
 
   // The answer is dispatched from the stream, where the text is certainly
