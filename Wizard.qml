@@ -53,6 +53,9 @@ Item {
   property string oracleModel: "llama3.2:3b"
   property string oracleHost: "127.0.0.1:11434"
   property bool oracleSense: true      // may he notice load, disk, battery
+  // Where the chat box sits. `bottom` keeps it behind your windows, part of
+  // the desktop like him, at the cost of being unable to type into it.
+  property string chatLayerName: "bottom"
 
   readonly property real spriteW: Sprites.W * unit
   readonly property real spriteH: Sprites.H * unit
@@ -298,6 +301,8 @@ Item {
       oracleHost = String(payload.aiHost)
     if (payload.sense !== undefined)
       oracleSense = payload.sense !== false
+    if (payload.chatLayer !== undefined)
+      chatLayerName = String(payload.chatLayer)
 
     screenName = String(payload.screen
       || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "") || "")
@@ -2435,6 +2440,7 @@ Item {
     visible: root.opened && root.chatOpen && !root.leaving
     screen: root.targetScreen
     entries: root.transcript
+    layerName: root.chatLayerName
     thinking: mind.thinking
     oracleReady: mind.ready
     oracleDetail: mind.detail

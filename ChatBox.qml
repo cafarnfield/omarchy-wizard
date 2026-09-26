@@ -24,6 +24,14 @@ PanelWindow {
   property bool oracleReady: false
   property string oracleDetail: ""
 
+  // Which Wayland layer to sit on. `bottom` puts it on the wallpaper beside
+  // the wizard, behind every window, out of the way of your work -- but a
+  // bottom surface cannot be given keyboard focus, so there is nothing to type
+  // into and the field is hidden. `top` and `overlay` float it in front and
+  // can be typed at.
+  property string layerName: "bottom"
+  readonly property bool canType: layerName === "top" || layerName === "overlay"
+
   signal submitted(string text)
   signal dismissed()
 
@@ -56,12 +64,15 @@ PanelWindow {
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
   WlrLayershell.namespace: "landis-wizard-chat"
-  WlrLayershell.layer: WlrLayer.Top
-  // OnDemand rather than Exclusive: the panel can be typed into when you click
-  // it, but it does not hold your keyboard hostage while it sits there. A
-  // transcript you have to close before you can use your editor again is worse
-  // than no transcript.
-  WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+  WlrLayershell.layer: box.layerName === "top" ? WlrLayer.Top
+    : (box.layerName === "overlay" ? WlrLayer.Overlay : WlrLayer.Bottom)
+  // OnDemand rather than Exclusive: it can be typed into when you click it,
+  // but it never holds your keyboard hostage while it sits there. A transcript
+  // you must close before you can use your editor again is worse than no
+  // transcript. On `bottom` the compositor will not focus it at all, so it
+  // does not ask.
+  WlrLayershell.keyboardFocus: box.canType ? WlrKeyboardFocus.OnDemand
+                                           : WlrKeyboardFocus.None
 
   anchors {
     right: true
@@ -75,7 +86,8 @@ PanelWindow {
   implicitHeight: 560
 
   function focusInput() {
-    entry.forceActiveFocus()
+    if (canType)
+      entry.forceActiveFocus()
   }
 
   Rectangle {
@@ -137,7 +149,8 @@ PanelWindow {
         color: box.inkDim
         font.pixelSize: 11
         text: box.thinking ? "thinking"
-          : (box.oracleReady ? "" : (box.oracleDetail !== "" ? "no oracle" : "listening"))
+          : (!box.oracleReady ? (box.oracleDetail !== "" ? "no oracle" : "listening")
+                              : (box.canType ? "" : "read only"))
       }
 
       Text {
@@ -173,7 +186,7 @@ PanelWindow {
         top: rule.bottom
         left: parent.left
         right: parent.right
-        bottom: footer.top
+        bottom: box.canType ? footer.top : parent.bottom
         margins: 10
       }
 
@@ -244,6 +257,7 @@ PanelWindow {
     // --- saying something back -----------------------------------------------
     Rectangle {
       id: footer
+      visible: box.canType
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
       anchors.margins: 8
       height: 38

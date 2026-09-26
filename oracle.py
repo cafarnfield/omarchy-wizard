@@ -354,6 +354,121 @@ def sense_lines(facts):
     return lines
 
 
+# --- what he carries between summonings -------------------------------------
+#
+# Everything above this point is stateless: a prompt goes out, a line comes
+# back, and nothing is kept. This is the exception, and it is the only thing in
+# the plugin that touches the disk.
+#
+# Three kinds of memory, in one small JSON file:
+#
+#   journal   things that happened to him -- castles entered, fish landed, a
+#             lantern lost over the side. Written by the QML side from events
+#             it already knows about, so they are facts rather than something
+#             a 3b model thought it remembered.
+#   talk      the last few exchanges with the human, so being summoned again
+#             is not being met by a stranger.
+#   about     things he has worked out about the human. The only part a model
+#             writes, and therefore the only part that can be wrong.
+#
+# The budget is the reason it is all so small. Ollama gives this model 4096
+# tokens and the prompt already spends about 900 of them, so memory gets a few
+# hundred and no more. A 3b model handed a week of transcript gets worse, not
+# better. What it needs is a dozen things it can hold in its head.
+
+MEMORY_DIR = os.path.join(
+    os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
+    "landis-wizard")
+MEMORY_FILE = os.path.join(MEMORY_DIR, "memory.json")
+
+JOURNAL_KEEP = 14
+ABOUT_KEEP = 8
+TALK_KEEP = 8          # messages, so four exchanges
+ENTRY_CHARS = 72
+
+
+def load_memory():
+    try:
+        with open(MEMORY_FILE, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return {"version": 1, "journal": [], "about": [], "talk": []}
+    if not isinstance(data, dict):
+        return {"version": 1, "journal": [], "about": [], "talk": []}
+    for key in ("journal", "about", "talk"):
+        if not isinstance(data.get(key), list):
+            data[key] = []
+    return data
+
+
+def save_memory(mem):
+    """Write it out whole. It is a few kilobytes; there is nothing to optimise.
+
+    Written to a neighbouring file and renamed, so a crash half way through
+    leaves the old memory intact rather than a truncated one.
+    """
+    try:
+        os.makedirs(MEMORY_DIR, exist_ok=True)
+        temp = MEMORY_FILE + ".new"
+        with open(temp, "w", encoding="utf-8") as handle:
+            json.dump(mem, handle, indent=1)
+        os.replace(temp, MEMORY_FILE)
+    except OSError as err:
+        print("memory: %s" % err, file=sys.stderr)
+        return False
+    return True
+
+
+def _stamp():
+    return time.strftime("%Y-%m-%d %H:%M")
+
+
+def remember_event(mem, text):
+    """One thing that happened to him. Deduplicated against the recent past."""
+    body = clean(text, ENTRY_CHARS)
+    if not body:
+        return False
+    recent = [e.get("what") for e in mem["journal"][-6:]]
+    if body in recent:
+        return False
+    mem["journal"].append({"at": _stamp(), "what": body})
+    del mem["journal"][:-JOURNAL_KEEP]
+    return True
+
+
+def remember_fact(mem, text):
+    """Something about the human. Counted, so the oft-seen ones survive."""
+    body = clean(text, ENTRY_CHARS)
+    if not body:
+        return False
+    for fact in mem["about"]:
+        if fact.get("fact") == body:
+            fact["seen"] = int(fact.get("seen", 1)) + 1
+            fact["at"] = _stamp()
+            return False
+    mem["about"].append({"fact": body, "seen": 1, "at": _stamp()})
+    # When it is full the least-often-noticed goes first, so a one-off
+    # observation does not crowd out something true every day.
+    if len(mem["about"]) > ABOUT_KEEP:
+        mem["about"].sort(key=lambda f: (int(f.get("seen", 1)), f.get("at", "")))
+        del mem["about"][:len(mem["about"]) - ABOUT_KEEP]
+    return True
+
+
+def memory_lines(mem):
+    """The memory as prompt text, or nothing at all when he is new."""
+    out = []
+    if mem["about"]:
+        out.append("What you have worked out about the human, over time:")
+        for fact in mem["about"][-ABOUT_KEEP:]:
+            out.append("- %s" % fact["fact"])
+    if mem["journal"]:
+        out.append("Things that have happened to you, oldest first:")
+        for entry in mem["journal"][-JOURNAL_KEEP:]:
+            out.append("- %s (%s)" % (entry["what"], entry["at"]))
+    return out
+
+
 # --- shaping what comes back ------------------------------------------------
 
 SMART = {
