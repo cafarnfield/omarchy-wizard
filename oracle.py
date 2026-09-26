@@ -713,13 +713,33 @@ BEATS = {
 SPEAKERS = {"deathsays": DEATH_PERSONA}
 
 
-def prompt_for(mode, ctx, facts, with_sense, count):
+# Beats where what he remembers is worth the tokens it costs. A short reactive
+# line ("IT HUMS.") is not improved by a page of history, and on a 3b model the
+# extra context makes it slower and vaguer, so most beats do without.
+MEMORY_BEATS = {"idle", "greet", "sight", "return", "death", "machine",
+                "bedtime", "fire"}
+
+
+def memory_message(mem, beat, mode):
+    if mode == "ask" or mode == "ambient" or beat in MEMORY_BEATS:
+        lines = memory_lines(mem)
+        if lines:
+            return [{"role": "system", "content":
+                     "\n".join(lines) + "\n\nDo not recite these. They are"
+                     " simply things you know. Refer to one only if it is"
+                     " genuinely relevant to what is happening now."}]
+    return []
+
+
+def prompt_for(mode, ctx, facts, with_sense, count, mem=None):
     beat = str(ctx.get("beat") or ("ask" if mode == "ask" else ""))
     scene = situation(ctx, facts, with_sense, beat)
+    recall = memory_message(mem or load_memory(), beat, mode)
     if mode == "ask":
         question = clean(ctx.get("question"), 200) or "WELL?"
         return [
             {"role": "system", "content": PERSONA},
+        ] + recall + [
             {"role": "system", "content":
                 "Where you are:\n%s\n\nThe human has spoken to you. Answer them"
                 " in character, in at most twenty words -- one or two short"
@@ -727,11 +747,12 @@ def prompt_for(mode, ctx, facts, with_sense, count):
                 " but stay a wizard about it." % scene},
         ] + list(ctx.get("history") or []) + [
             {"role": "user", "content": question},
-        ]
+        ]  # history comes from the memory file; see mode_generate
 
     if mode == "ambient":
         return [
             {"role": "system", "content": PERSONA},
+        ] + recall + [
             {"role": "user", "content":
                 "Where you are:\n%s\n\nWrite %d different things you might say"
                 " out loud right now, unprompted. One per line, nothing else --"
@@ -755,6 +776,7 @@ def prompt_for(mode, ctx, facts, with_sense, count):
                         % (str(ctx.get("heardFrom") or "THEY"), heard))
     return [
         {"role": "system", "content": SPEAKERS.get(beat, PERSONA)},
+    ] + recall + [
         {"role": "user", "content":
             "Where you are:\n%s\n\nTHIS IS WHAT IS HAPPENING RIGHT NOW, and"
             " it is what you must respond to: %s\n\nOne line, at most six"
@@ -798,11 +820,17 @@ def mode_generate(args):
     if not isinstance(ctx, dict):
         ctx = {}
 
+    mem = load_memory()
+    # The conversation lives on the disk rather than in the QML side, so being
+    # summoned again is not being met by a stranger.
+    if args.mode == "ask" and not ctx.get("history"):
+        ctx["history"] = mem["talk"][-TALK_KEEP:]
+
     facts = sense() if args.sense else {}
     count = max(1, min(8, args.count))
     # Some candidates will be declined for running long, so ask for spares.
     asked = count + 3 if args.mode == "ambient" else count
-    messages = prompt_for(args.mode, ctx, facts, args.sense, asked)
+    messages = prompt_for(args.mode, ctx, facts, args.sense, asked, mem)
 
     if args.mode == "ask":
         limit, predict = REPLY_CHARS, 64
@@ -831,13 +859,111 @@ def mode_generate(args):
     said = clean(raw, limit)
     if not said:
         return 1
+    if args.mode == "ask":
+        mem["talk"].append({"role": "user",
+                            "content": clean(ctx.get("question"), 200)})
+        mem["talk"].append({"role": "assistant", "content": said})
+        del mem["talk"][:-TALK_KEEP]
+        save_memory(mem)
     print(said)
+    return 0
+
+
+def mode_remember(args):
+    """Record something that happened. Called by the QML side, which knows.
+
+    Deliberately not the model's job: these are events the plugin already has
+    in hand -- a structure entered, a lantern lost over the side -- and a fact
+    is worth more in a journal than a 3b model's recollection of one.
+    """
+    mem = load_memory()
+    changed = False
+    if args.journal:
+        changed = remember_event(mem, args.journal) or changed
+    if args.fact:
+        changed = remember_fact(mem, args.fact) or changed
+    if changed and not save_memory(mem):
+        return 1
+    return 0
+
+
+def mode_memory(args):
+    print(json.dumps(load_memory(), indent=1))
+    return 0
+
+
+def mode_forget(args):
+    """Wipe some or all of it. `--what all` is the big red button."""
+    mem = load_memory()
+    what = args.what
+    for key in ("journal", "about", "talk"):
+        if what in ("all", key):
+            mem[key] = []
+    if not save_memory(mem):
+        return 1
+    print("forgot %s" % what)
+    return 0
+
+
+def mode_reflect(args):
+    """Ask him what he has noticed about the human, and keep it if it is new.
+
+    The only part of memory a model writes, and so the only part that can be
+    wrong. It is given the measured facts and the conversation and asked for
+    one short observation, or the word NOTHING -- which it is told is the
+    right answer most of the time, because it will otherwise invent something
+    to be helpful.
+    """
+    mem = load_memory()
+    facts = sense() if args.sense else {}
+    known = [f["fact"] for f in mem["about"]]
+    talk = mem["talk"][-TALK_KEEP:]
+    if not talk and not facts:
+        return 1
+
+    said = "\n".join("%s: %s" % (m["role"], m["content"]) for m in talk)
+    messages = [
+        {"role": "system", "content": PERSONA},
+        {"role": "user", "content":
+            "Here is what you can see of the human's machine:\n%s\n\nHere is"
+            " what has been said between you lately:\n%s\n\nYou already know"
+            " these things about them:\n%s\n\nHave you noticed ONE new thing"
+            " about this person -- a habit, a preference, something they told"
+            " you? Reply with that one thing in under twelve words, as a plain"
+            " statement, not in character.\n\nIf you have not noticed anything"
+            " genuinely new, reply with the single word NOTHING. That is the"
+            " right answer most of the time. Do not guess, do not invent, and"
+            " do not repeat something you already know."
+            % ("\n".join(sense_lines(facts)) or "nothing",
+               said or "nothing yet",
+               "\n".join("- " + k for k in known) or "nothing yet")},
+    ]
+    try:
+        raw = call(args.host, args.model, messages, args.timeout, 40,
+                   temperature=0.3)
+    except (urllib.error.URLError, OSError, ValueError, socket.timeout) as err:
+        print("reflect: %s" % err, file=sys.stderr)
+        return 1
+
+    fact = clean(raw, ENTRY_CHARS)
+    if not fact or fact.startswith("NOTHING") or len(fact) < 8:
+        return 1
+    if not remember_fact(mem, fact):
+        return 1
+    save_memory(mem)
+    print(fact)
     return 0
 
 
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["check", "sense", "ambient", "beat", "ask"])
+    parser.add_argument("mode", choices=["check", "sense", "ambient", "beat",
+                                        "ask", "remember", "memory", "forget",
+                                        "reflect"])
+    parser.add_argument("--journal", default="", help="an event to record")
+    parser.add_argument("--fact", default="", help="an observation to record")
+    parser.add_argument("--what", default="all",
+                        choices=["all", "journal", "about", "talk"])
     parser.add_argument("--ctx", default="", help="situation, as JSON")
     parser.add_argument("--host", default=os.environ.get("WIZARD_OLLAMA_HOST",
                                                          DEFAULT_HOST))
@@ -853,6 +979,14 @@ def main(argv):
         return mode_check(args)
     if args.mode == "sense":
         return mode_sense(args)
+    if args.mode == "remember":
+        return mode_remember(args)
+    if args.mode == "memory":
+        return mode_memory(args)
+    if args.mode == "forget":
+        return mode_forget(args)
+    if args.mode == "reflect":
+        return mode_reflect(args)
     return mode_generate(args)
 
 

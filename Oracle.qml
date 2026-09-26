@@ -296,7 +296,8 @@ Item {
 
   // --- conversation --------------------------------------------------------
 
-  property var history: []             // the last few exchanges, as messages
+  property int turns: 0                // exchanges this summoning
+  property int sinceReflect: 0         // exchanges since he last took stock
 
   function converse(question) {
     if (!active || !ready)
@@ -306,8 +307,7 @@ Item {
     thinking = true
     askProc.question = question
     askProc.command = argsFor("ask", ["--ctx", contextJson({
-      question: question,
-      history: history
+      question: question
     })])
     askProc.running = true
     return true
@@ -325,15 +325,10 @@ Item {
         if (line === "")
           return
         oracle.thinking = false
-        // Four exchanges is enough for him to follow a thread without the
-        // prompt growing until a small model loses the plot.
-        let next = oracle.history.concat([
-          { role: "user", content: askProc.question },
-          { role: "assistant", content: line }
-        ])
-        while (next.length > 8)
-          next.shift()
-        oracle.history = next
+        // oracle.py has already written this exchange to the memory file; all
+        // that is kept here is the count, for `oracle ""`.
+        oracle.turns += 1
+        oracle.sinceReflect += 1
         oracle.served += 1
         oracle.replyReady(line)
       }
@@ -347,10 +342,81 @@ Item {
     }
   }
 
+  // --- what he keeps between summonings ------------------------------------
+
+  // Record something that happened. Queued, because several things can happen
+  // in the same second and each one of these is a process.
+  property var pending: []
+
+  function remember(text) {
+    const body = String(text || "").trim()
+    if (!active || body === "")
+      return
+    pending = pending.concat([body])
+    drainMemory()
+  }
+
+  function drainMemory() {
+    if (rememberProc.running || pending.length === 0)
+      return
+    const queue = pending.slice()
+    const next = queue.shift()
+    pending = queue
+    rememberProc.command = baseArgs.concat(["remember", "--journal", next])
+    rememberProc.running = true
+  }
+
+  Process {
+    id: rememberProc
+    onExited: oracle.drainMemory()
+  }
+
+  // Ask him what he has noticed about the human. Slow and occasional: it is
+  // the only part of memory a model writes, so the less often it runs, the
+  // less often it can be wrong.
+  property string learned: ""          // the last thing he worked out
+
+  function reflect() {
+    if (!active || !ready || reflectProc.running || sinceReflect < 2)
+      return
+    sinceReflect = 0
+    reflectProc.command = argsFor("reflect", null)
+    reflectProc.running = true
+  }
+
+  Process {
+    id: reflectProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        const noticed = String(text || "").trim()
+        if (noticed !== "")
+          oracle.learned = noticed
+      }
+    }
+  }
+
+  Timer {
+    interval: 240000
+    repeat: true
+    running: oracle.active && oracle.ready
+    onTriggered: oracle.reflect()
+  }
+
   function forget() {
-    history = []
+    turns = 0
+    forgetProc.command = baseArgs.concat(["forget", "--what", "talk"])
+    forgetProc.running = true
     return "ok"
   }
+
+  function forgetEverything() {
+    turns = 0
+    forgetProc.command = baseArgs.concat(["forget", "--what", "all"])
+    forgetProc.running = true
+    return "ok"
+  }
+
+  Process { id: forgetProc }
 
   // --- giving up gracefully ------------------------------------------------
 
@@ -389,7 +455,8 @@ Item {
       pooled: pool.length,
       thinking: thinking,
       spoken: served,
-      turns: history.length / 2,
+      turns: turns,
+      learned: learned,
       detail: detail,
       lastError: lastError
     }

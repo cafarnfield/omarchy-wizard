@@ -549,8 +549,27 @@ Item {
   }
 
   // Reachable as: omarchy-shell shell call landis.wizard forget ""
+  // Drops the conversation. What he remembers of his own life survives.
   function forget(arg) {
     return mind.forget()
+  }
+
+  // Reachable as: omarchy-shell shell call landis.wizard memory ""
+  // Where the memory file is, and what he currently believes is in it. The
+  // file itself is plain JSON and can be read or edited by hand.
+  function memory(arg) {
+    return JSON.stringify({
+      file: Quickshell.env("HOME") + "/.local/state/landis-wizard/memory.json",
+      learned: mind.learned,
+      turnsThisSummoning: mind.turns
+    })
+  }
+
+  // Reachable as: omarchy-shell shell call landis.wizard forgetAll ""
+  // The big red button: journal, conversation and everything he thinks he has
+  // worked out about you.
+  function forgetAll(arg) {
+    return mind.forgetEverything()
   }
 
   // Re-read the wallpaper. Also called when the background symlink moves.
@@ -889,6 +908,8 @@ Item {
       const lucky = Math.random() < 0.5 && inventory.indexOf("fish") === -1
       voice(lucky ? "fishluck" : "fishnoluck", 3.0)
       if (lucky)
+        recall("caught a fish in the lake")
+      if (lucky)
         acquire("fish")
     } else if (waterEvent === "overboard") {
       splash(14)
@@ -901,6 +922,7 @@ Item {
             kept.push(inventory[i])
         inventory = kept
         voice("droplost", 2.8, { item: drop })
+        recall("lost a " + drop + " over the side of the boat")
       }
     }
     waterEvent = ""
@@ -1062,6 +1084,7 @@ Item {
     catMood = "sit"
     catIdle = "sit"
     voice("transform", 3.2)
+    recall("turned Soot into a " + catShape + " by accident")
     spawn(16, catX + catW / 2, catFootY - catH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["L"]], 110, 0.8)
   }
@@ -1239,6 +1262,14 @@ Item {
     bubbleUntil = 0
   }
 
+  // What goes in the journal. These are written from what the plugin already
+  // knows rather than from anything the model thought it remembered, so they
+  // are facts. Kept sparse on purpose -- the journal holds fourteen entries,
+  // and a line about every crystal he touches would push out the castle.
+  function recall(text) {
+    mind.remember(text)
+  }
+
   function returnHome() {
     mood = "arrive"
     moodClock = 0
@@ -1247,6 +1278,8 @@ Item {
     spawn(24, centerX, fy + spriteH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["Y"]], 130, 0.9)
     voice("return", 3.4)
+    recall("went inside the " + String((visiting && visiting.shape) || "place")
+           + " on the " + (centerX < stage.width / 2 ? "west" : "east") + " side")
     if (Math.random() < 0.7)
       acquire(["key", "book", "crystal", "lantern"][Math.floor(Math.random() * 4)])
   }
@@ -1643,6 +1676,7 @@ Item {
       droppedX = fx + spriteW * 0.5 + (facing > 0 ? 1 : -1) * spriteW * 0.4
       droppedUntil = clock + 9
       voice("catsteal", 3.2, { item: lost })
+      recall("Soot made off with a " + lost)
       startCatTask("underfoot", Brain.between(3, 5), droppedX - catW / 2)
     } else {
       const crystals = poisOfKind("crystal")
@@ -1702,6 +1736,7 @@ Item {
           if (inventory.indexOf(gift) === -1) {
             acquire(gift)
             voice("gift", 3.2, { item: gift })
+            recall("Soot brought a " + gift + " and dropped it at his feet")
           }
         }
       }
@@ -1870,6 +1905,7 @@ Item {
         deathClock = 0
         deathFor = Brain.between(9, 14)
         mind.requestDeath(lastPhrase)
+        recall("Death called round to pet the cat")
       } else {
         const speed = walkSpeed * unit * 0.8
         deathX += Math.max(-speed * dt, Math.min(speed * dt, dx))
