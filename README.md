@@ -264,6 +264,60 @@ Scene detail is filtered per beat for the same reason. Told about three lit
 towers, he answered a question about bedtime with *THREE LIGHTS, ONE TOWER
 STANDING TALL.* He is now told only what the beat at hand needs.
 
+## What he remembers
+
+He used to forget everything the moment he was dismissed. Three kinds of memory
+now survive, in one small JSON file you can read, edit or delete:
+
+```bash
+cat ~/.local/state/landis-wizard/memory.json
+```
+
+It is the only thing in the plugin that touches the disk.
+
+| | |
+|---|---|
+| **journal** | things that happened to him — a castle entered, a lantern lost over the side, Soot making off with the key |
+| **talk** | the last four exchanges, so being summoned again is not being met by a stranger |
+| **about** | what he has worked out about you. **Off by default** — see below |
+
+The journal is written by the plugin from events it already has in hand, so
+those are facts rather than a 3b model's recollection of facts. The
+conversation is what was actually typed. Both are trustworthy.
+
+```bash
+omarchy-shell shell call landis.wizard memory ""      # where the file is
+omarchy-shell shell call landis.wizard forget ""      # drop the conversation
+omarchy-shell shell call landis.wizard forgetAll ""   # journal, talk and all
+```
+
+### Why he does not form opinions about you unless you ask
+
+`{"learn":true}` lets him notice things about the person at the keyboard and
+write them down. It is off by default because it does not work well enough to
+be on.
+
+Asked what he had noticed, the model replied **"THEY TYPE WITH THEIR LEFT
+HAND"** — something it has no way of knowing, invented to be helpful, and
+written to disk as a fact about its owner.
+
+It now has to quote the exact line of evidence for any claim, and the quote is
+checked against the text it was actually given. That rejects four claims in
+five. It does not catch the last one, where it quotes a real line and draws an
+invented conclusion from it: the next attempt produced "THEIR KEYBOARD IS SET
+TO ENGLISH UNITED STATES", cited something real, and passed.
+
+So it is opt-in, and if you turn it on, read `memory.json` occasionally.
+
+### The budget is why it is all so small
+
+Ollama gives this model 4096 tokens and the prompt already spends about 900, so
+memory gets a few hundred and no more: fourteen journal entries, eight facts,
+four exchanges. Most beats are shown none of it — *IT HUMS.* is not improved by
+a page of history, and on a 3b model the extra context makes it slower and
+vaguer. Writes are atomic, so a crash leaves the old memory rather than half a
+new one.
+
 ### He is not a monitoring tool
 
 Everything he says is written having been shown real figures, and can therefore

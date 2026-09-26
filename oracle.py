@@ -905,6 +905,12 @@ def mode_forget(args):
     return 0
 
 
+def _flatten(text):
+    """Lowercase, letters and digits only -- for comparing a quote to a source
+    without tripping over punctuation or capitals the model changed."""
+    return re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()).strip()
+
+
 def mode_reflect(args):
     """Ask him what he has noticed about the human, and keep it if it is new.
 
@@ -929,11 +935,13 @@ def mode_reflect(args):
             " what has been said between you lately:\n%s\n\nYou already know"
             " these things about them:\n%s\n\nHave you noticed ONE new thing"
             " about this person -- a habit, a preference, something they told"
-            " you? Reply with that one thing in under twelve words, as a plain"
-            " statement, not in character.\n\nIf you have not noticed anything"
-            " genuinely new, reply with the single word NOTHING. That is the"
-            " right answer most of the time. Do not guess, do not invent, and"
-            " do not repeat something you already know."
+            " you?\n\nAnswer in exactly this form, on one line:\n\n"
+            "  <the observation, under twelve words> | <the exact line above"
+            " that proves it, copied word for word>\n\nThe evidence must be"
+            " copied verbatim from the text above. If nothing above proves it,"
+            " you have not observed it -- you have guessed it, and the answer"
+            " is the single word NOTHING. NOTHING is the right answer most of"
+            " the time. Do not repeat something you already know."
             % ("\n".join(sense_lines(facts)) or "nothing",
                said or "nothing yet",
                "\n".join("- " + k for k in known) or "nothing yet")},
@@ -945,7 +953,24 @@ def mode_reflect(args):
         print("reflect: %s" % err, file=sys.stderr)
         return 1
 
-    fact = clean(raw, ENTRY_CHARS)
+    # Asked flatly what it had noticed, the model replied "THEY TYPE WITH
+    # THEIR LEFT HAND" -- something it has no way of knowing and cheerfully
+    # invented to be helpful. So it must now cite the line that proves it, and
+    # the citation is checked against the text it was actually given. A claim
+    # it cannot ground is a claim it made up, and is thrown away.
+    line = str(raw or "").strip().split("\n")[0]
+    if "|" not in line:
+        print("reflect: no evidence offered", file=sys.stderr)
+        return 1
+    claim, _, evidence = line.partition("|")
+    haystack = _flatten(said + "\n" + "\n".join(sense_lines(facts)))
+    needle = _flatten(evidence)
+    if len(needle) < 8 or needle not in haystack:
+        print("reflect: evidence not found in context: %r" % evidence[:60],
+              file=sys.stderr)
+        return 1
+
+    fact = clean(claim, ENTRY_CHARS)
     if not fact or fact.startswith("NOTHING") or len(fact) < 8:
         return 1
     if not remember_fact(mem, fact):

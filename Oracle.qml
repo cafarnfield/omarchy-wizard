@@ -376,8 +376,18 @@ Item {
   // less often it can be wrong.
   property string learned: ""          // the last thing he worked out
 
+  // Off unless you ask for it. The journal and the conversation are facts --
+  // events the plugin saw, words that were actually typed. This is the one
+  // part a model writes, and a 3b model asked what it has noticed about you
+  // will make something up to be helpful: it offered "THEY TYPE WITH THEIR
+  // LEFT HAND", which it cannot possibly know. Requiring it to quote its
+  // evidence rejects most of that, but not the case where it quotes a real
+  // line and draws an invented conclusion from it. So: opt in, knowing that.
+  property bool learnAboutYou: false
+
   function reflect() {
-    if (!active || !ready || reflectProc.running || sinceReflect < 2)
+    if (!active || !ready || !learnAboutYou || reflectProc.running
+        || sinceReflect < 2)
       return
     sinceReflect = 0
     reflectProc.command = argsFor("reflect", null)
@@ -398,7 +408,7 @@ Item {
   Timer {
     interval: 240000
     repeat: true
-    running: oracle.active && oracle.ready
+    running: oracle.active && oracle.ready && oracle.learnAboutYou
     onTriggered: oracle.reflect()
   }
 
@@ -457,6 +467,7 @@ Item {
       spoken: served,
       turns: turns,
       learned: learned,
+      learnAboutYou: learnAboutYou,
       detail: detail,
       lastError: lastError
     }

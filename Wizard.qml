@@ -56,6 +56,9 @@ Item {
   // Where the chat box sits. `bottom` keeps it behind your windows, part of
   // the desktop like him, at the cost of being unable to type into it.
   property string chatLayerName: "bottom"
+  // May he form opinions about you and write them down. Off by default; see
+  // the note in Oracle.qml for why.
+  property bool learnAboutYou: false
 
   readonly property real spriteW: Sprites.W * unit
   readonly property real spriteH: Sprites.H * unit
@@ -303,6 +306,8 @@ Item {
       oracleSense = payload.sense !== false
     if (payload.chatLayer !== undefined)
       chatLayerName = String(payload.chatLayer)
+    if (payload.learn !== undefined)
+      learnAboutYou = payload.learn === true
 
     screenName = String(payload.screen
       || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "") || "")
@@ -2461,6 +2466,7 @@ Item {
     model: root.oracleModel
     host: root.oracleHost
     senseMachine: root.oracleSense
+    learnAboutYou: root.learnAboutYou
     contextProvider: () => root.aiContext()
 
     onBeatReady: (beat, serial, text) => root.speakGenerated(beat, serial, text)
