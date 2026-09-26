@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "landis.wizard",
   "name": "Wizard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Christopher Farnfield",
-  "description": "A wizard who reads your wallpaper: walks its shoreline, rows its lake, and visits its castles. With a cat, and occasional visits from Death.",
+  "description": "A wizard who reads your wallpaper: walks its shoreline, rows its lake, and visits its castles. With a cat, occasional visits from Death, and a voice of his own if you have a local model.",
   "kinds": [
     "panel"
   ],

@@ -45,6 +45,15 @@ Item {
   property bool explore: true          // may he set off on errands
   property string layerName: "bottom"  // bottom = part of the desktop scene
 
+  // He can borrow a voice from a model running on this machine. Loopback
+  // Ollama or nothing -- there is no remote option and no key to hold. Every
+  // one of these degrades to the fixed lists in Brain.js, so the defaults are
+  // safe on a box that has never heard of Ollama.
+  property bool useOracle: true        // may he think out loud
+  property string oracleModel: "llama3.2:3b"
+  property string oracleHost: "127.0.0.1:11434"
+  property bool oracleSense: true      // may he notice load, disk, battery
+
   readonly property real spriteW: Sprites.W * unit
   readonly property real spriteH: Sprites.H * unit
 
@@ -112,6 +121,15 @@ Item {
   property var bubbleLines: []
   property real bubbleUntil: 0
   property string lastPhrase: ""
+
+  // Which utterance is currently in the bubble. A generated line may only ever
+  // replace the static one it was asked to improve on, so a slow answer that
+  // lands after he has moved on and said something else is dropped rather than
+  // put in his mouth out of order.
+  property int bubbleStamp: 0
+  property int voiceSerial: -1
+  property int voiceStamp: -1
+  property int thinkPhase: 0
 
   // --- the world he is standing in ----------------------------------------
   property var scene: null
@@ -261,6 +279,14 @@ Item {
       hasCat = payload.cat !== false
     if (payload.layer !== undefined)
       layerName = String(payload.layer)
+    if (payload.ai !== undefined)
+      useOracle = payload.ai !== false
+    if (payload.model !== undefined)
+      oracleModel = String(payload.model)
+    if (payload.aiHost !== undefined)
+      oracleHost = String(payload.aiHost)
+    if (payload.sense !== undefined)
+      oracleSense = payload.sense !== false
 
     screenName = String(payload.screen
       || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "") || "")
@@ -286,7 +312,111 @@ Item {
     }
     bubbleLines = Brain.wrap(body, 16)
     bubbleUntil = clock + (seconds > 0 ? seconds : 3.4)
+    bubbleStamp += 1
     return "ok"
+  }
+
+  // Say the static line now, and ask the model for a better one.
+  //
+  // He speaks immediately off the list, exactly as he always did, so nothing
+  // ever happens to him without an instant remark. If a generated line comes
+  // back while that bubble is still up and he is still in the same moment, it
+  // takes its place -- which reads as him settling on the thought rather than
+  // as two separate remarks.
+  //
+  // All of it is best-effort. No model, a slow model, or a model that answers
+  // after the bubble has gone all end the same way: the static line he already
+  // said is the line he said.
+  function voice(list, beat, seconds) {
+    const fallback = Brain.pick(list, lastPhrase)
+    lastPhrase = fallback
+    say(fallback, seconds)
+    voiceSerial = mind.requestBeat(beat)
+    voiceStamp = bubbleStamp
+    return fallback
+  }
+
+  // Ask for a better line for something already said, without choosing the
+  // static line here -- for the few places that pick their own.
+  function revoice(beat) {
+    voiceSerial = mind.requestBeat(beat)
+    voiceStamp = bubbleStamp
+  }
+
+  function speakGenerated(beat, serial, text) {
+    if (serial !== voiceSerial || bubbleStamp !== voiceStamp)
+      return
+    voiceSerial = -1
+    if (leaving || mood === "away" || deathLines.length > 0)
+      return
+    if (clock >= bubbleUntil)
+      return
+    const body = String(text || "").trim()
+    if (body === "" || body === lastPhrase)
+      return
+    lastPhrase = body
+    // Hold it for whatever is left of the original bubble, or long enough to
+    // read a longer line, whichever is the greater.
+    say(body, Math.max(bubbleUntil - clock, 1.6 + body.length * 0.075))
+  }
+
+  // What he can see of his own circumstances, handed to the model with every
+  // request. oracle.py adds what it can read of the machine to this.
+  function aiContext() {
+    return {
+      mood: mood,
+      surface: surfaceAt(centerX),
+      afloat: afloat,
+      event: waterEvent,
+      land: landEvent,
+      hasCat: hasCat,
+      catNear: hasCat && Math.abs(catX - fx) < spriteW * 1.6,
+      catShape: catShape,
+      deathHere: deathHere,
+      holding: holding,
+      inventory: inventory,
+      structures: poisOfKind("structure").length,
+      lights: poisOfKind("light").length,
+      wallpaper: backgroundPath.split("/").pop().replace(/\.[a-z0-9]+$/i, "")
+    }
+  }
+
+  // Put a question to him:
+  //   omarchy-shell shell call landis.wizard ask "WHERE DOES SOOT GO"
+  // He stops what he is doing, thinks about it visibly, and answers in the
+  // bubble. He remembers the last few exchanges, so you can follow a thread.
+  function ask(question) {
+    const body = String(question || "").trim()
+    if (body === "")
+      return "usage: ask \"YOUR QUESTION\""
+    if (leaving || mood === "away")
+      return "away"
+    if (!mind.ready) {
+      say(Brain.pick(Brain.NO_ORACLE, ""), 3.4)
+      return mind.status === "off" ? "disabled" : "unavailable"
+    }
+    if (!mind.converse(body))
+      return "busy"
+    // He attends to you: stops walking, abandons nothing, waits.
+    if (mood === "walk")
+      enterIdle(Brain.between(6, 9))
+    else if (mood === "sleep")
+      enterIdle(Brain.between(4, 7))
+    thinkPhase = 0
+    bubbleLines = ["."]
+    bubbleUntil = clock + 30
+    bubbleStamp += 1
+    return "ok"
+  }
+
+  // Reachable as: omarchy-shell shell call landis.wizard oracle ""
+  function oracle(arg) {
+    return JSON.stringify(mind.describe())
+  }
+
+  // Reachable as: omarchy-shell shell call landis.wizard forget ""
+  function forget(arg) {
+    return mind.forget()
   }
 
   // Re-read the wallpaper. Also called when the background symlink moves.
@@ -464,8 +594,7 @@ Item {
     if (leaving || mood === "away")
       return
     if (afloat) {
-      lastPhrase = Brain.pick(Brain.WATER, lastPhrase)
-      say(lastPhrase, 3.0)
+      voice(Brain.WATER, "water", 3.0)
       splash(8)
       return
     }
@@ -473,8 +602,16 @@ Item {
     moodClock = 0
     animClock = 0
     moodFor = 1.15
-    lastPhrase = Brain.pick(Brain.PHRASES, lastPhrase)
-    say(lastPhrase, 3.6)
+    // A click is the one moment he cannot afford to think about it, so this
+    // comes out of the pool the oracle keeps topped up in the background. An
+    // empty pool falls through to the list, and to asking for a better line.
+    const pooled = mind.take()
+    if (pooled !== "") {
+      lastPhrase = pooled
+      say(pooled, 3.6)
+    } else {
+      voice(Brain.PHRASES, "poke", 3.6)
+    }
     spawn(14, orbX, orbY, [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["Y"]], 150, 0.75)
   }
 
@@ -542,7 +679,7 @@ Item {
     moodFor = 0.7
     splash(10)
     if (Math.random() < 0.6)
-      say(Brain.pick(Brain.WATER, ""), 2.4)
+      voice(Brain.WATER, "water", 2.4)
   }
 
   function beginBeach() {
@@ -585,17 +722,17 @@ Item {
       waterEvent = "tentacle"
       eventFor = 5.0
       eventX = centerX - side * spriteW * 0.95
-      say(Brain.pick(Brain.TENTACLE, ""), 3.4)
+      voice(Brain.TENTACLE, "tentacle", 3.4)
       splash(8)
     } else if (roll < 0.44) {
       waterEvent = "fishing"
       eventFor = Brain.between(8, 13)
-      say(Brain.pick(Brain.FISHING, ""), 3.0)
+      voice(Brain.FISHING, "fishing", 3.0)
     } else if (roll < 0.58) {
       waterEvent = "overboard"
       eventFor = 6.5
       eventX = centerX + side * spriteW * 0.5
-      say(Brain.pick(Brain.OVERBOARD, ""), 3.6)
+      voice(Brain.OVERBOARD, "overboard", 3.6)
       splash(22)
     } else if (roll < 0.80) {
       waterEvent = "fishjump"
@@ -696,14 +833,14 @@ Item {
       landFor = Brain.between(26, 46)
       landX = centerX + (facing > 0 ? spriteW * 0.85 : -spriteW * 0.85)
       nextBrew = landClock + Brain.between(3, 6)
-      say(Brain.pick(Brain.STUDY, ""), 3.4)
+      voice(Brain.STUDY, "study", 3.4)
       enterIdle(landFor)
       turnAround(landX > centerX ? 1 : -1)
     } else if (pick < 0.72) {
       landEvent = "campfire"
       landFor = Brain.between(16, 26)
       landX = centerX + (facing > 0 ? spriteW * 0.75 : -spriteW * 0.75)
-      say(Brain.pick(Brain.FIRESIDE, ""), 3.2)
+      voice(Brain.FIRESIDE, "fire", 3.2)
       enterIdle(landFor)
       turnAround(landX > centerX ? 1 : -1)
       // She claims the warm spot, obviously.
@@ -713,7 +850,7 @@ Item {
     } else if (hasCat) {
       landEvent = "attention"
       landFor = Brain.between(5, 8)
-      say(Brain.pick(Brain.CAT_WANTS, ""), 3.2)
+      voice(Brain.CAT_WANTS, "cat", 3.2)
       enterIdle(landFor)
     } else {
       return "no"
@@ -743,7 +880,7 @@ Item {
                 [Sprites.PALETTE["V"] || Sprites.PALETTE["C"], Sprites.PALETTE["C"],
                  Sprites.PALETTE["A"]], 70, 0.9)
           if (Math.random() < 0.3) {
-            say(Brain.pick(Brain.BREW_LUCK, ""), 3.2)
+            voice(Brain.BREW_LUCK, "brew", 3.2)
             if (Math.random() < 0.5)
               acquire(["crystal", "book", "mushroom"][Math.floor(Math.random() * 3)])
           }
@@ -751,7 +888,7 @@ Item {
                    && Math.abs(catX - fx) < spriteW * 2.2) {
           transformCat()
         } else {
-          say(Brain.pick(Brain.STUDY, ""), 3.2)
+          voice(Brain.STUDY, "study", 3.2)
           if (Math.random() < 0.4) {
             mood = "cast"
             moodClock = 0
@@ -790,7 +927,7 @@ Item {
     catTask = ""
     catMood = "sit"
     catIdle = "sit"
-    say(Brain.pick(Brain.TRANSFORM, ""), 3.2)
+    voice(Brain.TRANSFORM, "transform", 3.2)
     spawn(16, catX + catW / 2, catFootY - catH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["L"]], 110, 0.8)
   }
@@ -805,7 +942,7 @@ Item {
     catIdle = "arch"
     catIdleClock = 0
     catIdleFor = Brain.between(3, 5)
-    say(Brain.pick(Brain.REVERT, ""), 3.0)
+    voice(Brain.REVERT, "revert", 3.0)
   }
 
   readonly property string tableFrame:
@@ -820,7 +957,7 @@ Item {
     moodClock = 0
     animClock = 0
     moodFor = 1.4
-    say(Brain.pick(Brain.CRYSTAL, ""), 3.4)
+    voice(Brain.CRYSTAL, "crystal", 3.4)
     spawn(18, orbX, orbY,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["L"]], 140, 0.9)
     if (Math.random() < 0.4)
@@ -875,7 +1012,7 @@ Item {
     // far shore to reach it rather than staying on the near bank.
     waterTargetY = Math.max(waterFar, Math.min(waterNear, Number(choice.y)))
     if (String(choice.kind) === "structure")
-      say(Brain.sightFor(String(choice.shape || "keep")), 3.2)
+      voice(Brain.sightsFor(String(choice.shape || "keep")), "sight", 3.2)
     enterWalk(0)
   }
 
@@ -942,7 +1079,7 @@ Item {
     moodClock = 0
     animClock = 0
     moodFor = 1.1
-    say(Brain.pick(Brain.LAMPS, ""), 3.0)
+    voice(Brain.LAMPS, "lamp", 3.0)
     spawn(10, orbX, orbY, [Sprites.PALETTE["Y"], Sprites.PALETTE["A"]], 110, 0.7)
     if (Math.random() < 0.45)
       acquire("crystal")
@@ -975,7 +1112,7 @@ Item {
     moodFor = 1.0
     spawn(24, centerX, fy + spriteH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["Y"]], 130, 0.9)
-    say(Brain.pick(Brain.RETURNS, ""), 3.4)
+    voice(Brain.RETURNS, "return", 3.4)
     if (Math.random() < 0.7)
       acquire(["key", "book", "crystal", "lantern"][Math.floor(Math.random() * 4)])
   }
@@ -991,6 +1128,7 @@ Item {
     holding = name
     holdTimer.restart()
     say(Brain.FINDS[name] || "A FIND.", 3.0)
+    revoice("find")
   }
 
   function useItem(name) {
@@ -1080,7 +1218,8 @@ Item {
       water: scene ? scene.waterFraction : null,
       structures: structures.length,
       lights: lights.length,
-      background: backgroundPath.split("/").pop()
+      background: backgroundPath.split("/").pop(),
+      ai: mind.describe()
     })
   }
 
@@ -1253,7 +1392,7 @@ Item {
         spawn(8, catX + catW / 2, catFootY - catH / 2,
               [Sprites.PALETTE["G"], Sprites.PALETTE["x"] || Sprites.PALETTE["D"]], 70, 0.6)
         if (Math.random() < 0.65)
-          say(Brain.pick(Brain.CAT_APPEARS, ""), 3.0)
+          voice(Brain.CAT_APPEARS, "catappears", 3.0)
         return
       }
     } else {
@@ -2017,8 +2156,10 @@ Item {
         moodClock = 0
         animClock = 0
         moodFor = sleepFor
-        say(catInBed ? Brain.pick(Brain.BEDTIME, "") : "Z Z Z",
-            catInBed ? 2.8 : Math.min(sleepFor, 8))
+        if (catInBed)
+          voice(Brain.BEDTIME, "bedtime", 2.8)
+        else
+          say("Z Z Z", Math.min(sleepFor, 8))
       }
       break
     case "sleep":
@@ -2117,7 +2258,7 @@ Item {
     interval: 2600
     onTriggered: {
       if (root.deathHere && root.mood !== "away")
-        root.say(Brain.pick(Brain.LANDIS_TO_DEATH, ""), 3.2)
+        root.voice(Brain.LANDIS_TO_DEATH, "death", 3.2)
     }
   }
 
@@ -2135,6 +2276,39 @@ Item {
         root.shell.hide(root.pluginId)
       else
         root.opened = false
+    }
+  }
+
+  // His second voice. Silent and inert unless there is a model to hand.
+  Oracle {
+    id: mind
+
+    active: root.useOracle
+    pluginDir: root.pluginDir
+    model: root.oracleModel
+    host: root.oracleHost
+    senseMachine: root.oracleSense
+    contextProvider: () => root.aiContext()
+
+    onBeatReady: (beat, serial, text) => root.speakGenerated(beat, serial, text)
+    onReplyReady: (text) => {
+      root.say(text, Math.max(4.0, 1.6 + text.length * 0.085))
+      root.lastPhrase = text
+    }
+    onReplyFailed: () => root.say(Brain.pick(Brain.NO_ORACLE, ""), 3.0)
+  }
+
+  // Three dots, cycling, while he thinks about your question. A local model
+  // takes a second or two, and a frozen bubble reads as a hang.
+  Timer {
+    interval: 380
+    repeat: true
+    running: mind.thinking && root.opened && !root.leaving
+    triggeredOnStart: true
+    onTriggered: {
+      root.thinkPhase = (root.thinkPhase + 1) % 3
+      root.bubbleLines = [".".repeat(root.thinkPhase + 1)]
+      root.bubbleUntil = root.clock + 2
     }
   }
 

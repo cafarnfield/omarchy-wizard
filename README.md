@@ -51,6 +51,19 @@ omarchy pkg add python-numpy python-pillow
 Without them he simply walks the bottom of the screen: the analysis fails
 safely and he carries on.
 
+### Optional: a voice of his own
+
+If [Ollama](https://ollama.com/) is running on this machine, he stops reading
+his lines off a list and starts writing them. See
+[He can think, if you let him](#he-can-think-if-you-let-him). Without it he
+speaks exactly as he always did.
+
+```bash
+omarchy pkg add ollama-cuda   # or plain `ollama` with no nvidia card
+sudo systemctl enable --now ollama
+ollama pull llama3.2:3b
+```
+
 ## Install
 
 ```bash
@@ -122,6 +135,85 @@ are, so if he strands her she turns up on his shore anyway.
 the cat. His speech is set pale-on-dark, since the font is capitals-only and
 small caps were not otherwise available.
 
+## He can think, if you let him
+
+Everything above is scripted, and stays scripted. On top of it, if there is an
+Ollama daemon on `127.0.0.1:11434` with the configured model pulled, he borrows
+a voice from it: the same wizard in the same register, but the words are
+written on the spot for the moment he is actually in.
+
+He is told where he is standing, what the wallpaper analysis found, what is in
+his pack, whether Soot is beside him or has been turned into a duck — and, if
+you leave `sense` on, what the machine under him is doing. So he grumbles about
+*your* uptime and *your* disk, not a generic one.
+
+None of it leaves the machine. It is loopback HTTP to Ollama and nothing else:
+no account, no API key, nothing on disk to leak.
+
+**He is never worse off without it.** No daemon, no model, a slow model, a
+model that answers after the moment has passed — every one of those ends with
+the line from `Brain.js` he had already said. That is the floor, and the
+generated line is only ever allowed to replace the static one it was asked to
+improve on. If it arrives late, it is dropped rather than put in his mouth out
+of order.
+
+### Talking to him
+
+```bash
+omarchy-shell shell call landis.wizard ask "WHERE DOES SOOT GO"
+```
+
+He stops, thinks about it visibly, and answers in the bubble. He remembers the
+last four exchanges, so you can follow a thread; `forget` clears it.
+
+A keybinding worth having, which prompts you for the question:
+
+```lua
+o.bind("SUPER + ALT + A", "Ask the wizard",
+       "bash -c 'q=$(omarchy-menu-input \"Ask the wizard\" --width 520) && " ..
+       "omarchy-shell shell call landis.wizard ask \"$q\"'")
+```
+
+### What he generates and what he does not
+
+A click has to answer instantly, and a local model does not. So ambient
+remarks are fetched several at a time in the background and kept in a small
+pool, and a click spends one of them — no wait at all. Everything else
+(touching a crystal, coming back out of a castle, Death making conversation)
+says its static line immediately and swaps in a better one if it arrives while
+the bubble is still up.
+
+He is rate-limited to one considered thought every six seconds, so a busy
+minute on the shoreline does not turn into a minute of continuous inference.
+
+### What he is told about your machine
+
+With `sense` on (the default) he is told the time and day, uptime, CPU load,
+memory and disk pressure, battery if there is one, how many windows are open,
+and the **class** of the focused window — `firefox`, `Alacritty`.
+
+Deliberately not window *titles*. Titles carry document names, ticket numbers
+and client names, and none of that needs to be in a prompt for a joke about a
+cat. Turn the lot off with `sense: false`.
+
+See exactly what he would be told, with no model involved:
+
+```bash
+python3 oracle.py sense | python3 -m json.tool
+```
+
+### Choosing a model
+
+`llama3.2:3b` is the default because it is small, quick, and quite funny when
+told to be terse. Anything you have pulled will work; a larger model is wittier
+and slower, and since he speaks in one-line asides the trade is rarely worth
+it. Reasoning models are asked not to think, since spending a thousand tokens
+of chain-of-thought on `MIND THE CABLES.` is a poor use of a graphics card.
+
+```bash
+omarchy-shell shell toggle landis.wizard '{"model":"qwen2.5:7b"}'
+```
+
 ## Configuration
 
 Options go in the summon payload:
@@ -138,6 +230,10 @@ omarchy-shell shell toggle landis.wizard '{"scale":5,"speed":40,"cat":false}'
 | `cat` | `true` | is Soot along |
 | `layer` | `"bottom"` | `bottom`, `top` or `overlay` |
 | `screen` | focused | output name, e.g. `DP-1` |
+| `ai` | `true` | may he borrow a voice from a local model |
+| `model` | `"llama3.2:3b"` | which Ollama model to borrow it from |
+| `aiHost` | `"127.0.0.1:11434"` | where the Ollama daemon is |
+| `sense` | `true` | may he notice load, disk, battery, open windows |
 
 `layer: "top"` puts him in front of your windows. He then draws over fullscreen
 games too, and his terrain-following only reads correctly against a visible
@@ -153,6 +249,25 @@ omarchy-shell shell call landis.wizard rescan ""          # re-read the wallpape
 omarchy-shell shell call landis.wizard summonDeath ""     # call Death now
 omarchy-shell shell call landis.wizard startWaterEvent "" # force a lake event
 omarchy-shell shell call landis.wizard startLandEvent ""  # force a shore event
+omarchy-shell shell call landis.wizard ask "WHY THE HAT"  # put a question to him
+omarchy-shell shell call landis.wizard oracle ""          # is he thinking, and with what
+omarchy-shell shell call landis.wizard forget ""          # drop the conversation so far
+```
+
+`oracle` is the first thing to check when he is speaking off the list and you
+expected better. It reports whether the daemon answered, which model it found,
+how many lines are in the pool, and — when it is not working — why not:
+
+```json
+{"active":true,"status":"unavailable","ready":false,"model":"llama3.2:3b",
+ "detail":"model llama3.2:3b not pulled (have: qwen2.5:7b)"}
+```
+
+The analysis half can be checked the same way, without a model:
+
+```bash
+python3 oracle.py ambient --count 3     # three things he might say right now
+python3 oracle.py ask --ctx '{"question":"WHO ARE YOU"}'
 ```
 
 `report` is the thing to reach for when something looks wrong — it gives his
@@ -196,6 +311,16 @@ A few things that cost me time and are not obvious:
 - **Size is continuous and eased.** Discrete scale tiers were tried first and
   popped badly. Fractional scale stays crisp because `PixelGrid` snaps each
   sprite pixel's *edges* rather than its size.
+- **The static lists are the floor, not the fallback.** Anything that adds a
+  new thing for him to say should add it to `Brain.js` first and call `voice()`
+  with it. A beat that only exists in the model is a beat that vanishes when
+  Ollama is not running.
+- **A generated line is stale the moment he moves on.** `voice()` records the
+  bubble's stamp; `speakGenerated()` refuses to speak an answer whose stamp no
+  longer matches. Without that he answers questions nobody can remember asking.
+- **`exited` and `streamFinished` have no promised order.** Read the text in
+  the stream handler and the exit code in `onExited`, and never let one depend
+  on the other having run.
 - **Every direction change goes through `turnAround()`**, which enforces a floor
   between flips. Without it any condition that reverses him each tick turns him
   into a stuck, 30Hz blur.

@@ -205,8 +205,22 @@ var FINDS = {
   "lantern": "A LANTERN, STILL LIT."
 }
 
+// What he says when you put a question to him and there is nothing on this
+// machine to answer it with. He will not admit to having run out of magic.
+var NO_ORACLE = [
+  "THE ORB IS DARK TODAY.",
+  "ASK ME AGAIN WHEN I HAVE SLEPT.",
+  "MY MIND IS ELSEWHERE.",
+  "THE AETHER IS QUIET. TRY LATER.",
+  "I AM NOT TAKING QUESTIONS."
+]
+
+function sightsFor(shape) {
+  return SIGHTS[shape] || SIGHTS["keep"]
+}
+
 function sightFor(shape) {
-  var list = SIGHTS[shape] || SIGHTS["keep"]
+  var list = sightsFor(shape)
   return list[Math.floor(Math.random() * list.length)]
 }
 
