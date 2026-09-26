@@ -135,12 +135,16 @@ are, so if he strands her she turns up on his shore anyway.
 the cat. His speech is set pale-on-dark, since the font is capitals-only and
 small caps were not otherwise available.
 
-## He can think, if you let him
+## He can think, and nothing else speaks for him
 
-Everything above is scripted, and stays scripted. On top of it, if there is an
-Ollama daemon on `127.0.0.1:11434` with the configured model pulled, he borrows
-a voice from it: the same wizard in the same register, but the words are
-written on the spot for the moment he is actually in.
+**He needs a model. Without one he does not talk at all.**
+
+There is no script left. `Brain.js` used to hold two hundred-odd fixed remarks
+picked at random; every one of them is gone, and what survives of that file is
+two functions of arithmetic. Each of his thirty-four beats — touching a crystal,
+landing a fish, being picked up by the scruff, finding his pack empty, Soot
+making off with his lantern — is written on the spot by the model, for the
+moment he is actually in.
 
 He is told where he is standing, what the wallpaper analysis found, what is in
 his pack, whether Soot is beside him or has been turned into a duck — and, if
@@ -150,12 +154,15 @@ you leave `sense` on, what the machine under him is doing. So he grumbles about
 None of it leaves the machine. It is loopback HTTP to Ollama and nothing else:
 no account, no API key, nothing on disk to leak.
 
-**He is never worse off without it.** No daemon, no model, a slow model, a
-model that answers after the moment has passed — every one of those ends with
-the line from `Brain.js` he had already said. That is the floor, and the
-generated line is only ever allowed to replace the static one it was asked to
-improve on. If it arrives late, it is dropped rather than put in his mouth out
-of order.
+**There is no floor under him any more.** With no daemon, or the model not
+pulled, he walks the shore, rows the lake, fishes, sleeps and lets himself into
+castles exactly as before, in complete silence. That is the trade for having
+nothing canned. `oracle ""` and the chat box header will tell you why he has
+gone quiet.
+
+A line arriving more than seven seconds after its moment is dropped rather than
+spoken, since by then it is a remark about something he has stopped doing. He
+would rather say nothing than say it late.
 
 ### Talking to him
 
@@ -207,26 +214,42 @@ lives on `bottom` and is meant to be part of the wallpaper. Focus is
 `OnDemand`, not `Exclusive`: click it to type, and it never holds your keyboard
 while it sits there.
 
-### What he generates and what he does not
+### The pause before he speaks
 
-A click has to answer instantly, and a local model does not. So ambient
-remarks are fetched several at a time in the background and kept in a small
-pool, and a click spends one of them — no wait at all. Everything else
-(touching a crystal, coming back out of a castle, Death making conversation)
-says its static line immediately and swaps in a better one if it arrives while
-the bubble is still up.
+A click has to answer instantly and a local model does not, so ambient remarks
+are fetched several at a time in the background and kept in a small pool; a
+click spends one of them with no wait at all.
 
-He is rate-limited to one considered thought every six seconds, so a busy
-minute on the shoreline does not turn into a minute of continuous inference.
+Every other beat is asked for as it happens, so there is a second or so between
+the thing occurring and him remarking on it. That is not a bug and not worth
+engineering away — a wizard who pauses before commenting is a wizard
+considering it.
+
+He is held to one considered thought every two seconds, so a busy minute on the
+shoreline does not become a minute of continuous inference.
+
+### Death speaks for himself
+
+Death has his own prompt, his own process and his own voice: an old
+professional with a list, unfailingly polite, here entirely because he is fond
+of the cat. Given Landis's prompt he grumbled about browser tabs, which is
+nobody's idea of Death.
+
+### The register examples are not lines
+
+`oracle.py` shows the model ten short lines as an example of the voice. They
+are never spoken, and it is told in as many words not to reuse them. They exist
+because a 3b model with no examples writes stage directions — *LAMP CASTS
+FLICKERING DIM EVENING LIGHT.* — rather than remarks.
+
+Scene detail is filtered per beat for the same reason. Told about three lit
+towers, he answered a question about bedtime with *THREE LIGHTS, ONE TOWER
+STANDING TALL.* He is now told only what the beat at hand needs.
 
 ### He is not a monitoring tool
 
-He will tell you the disk is full. It is a line in `Brain.js`, it has been
-there since the first commit, and it means nothing at all -- like everything
-in those lists, it fires at random.
-
-The generated lines are different, because they are shown real figures and
-can therefore look like measurements. **Do not treat them as measurements.**
+Everything he says is written having been shown real figures, and can therefore
+look like a measurement. **None of it is a measurement.**
 A 3b model quotes a number correctly and then draws the opposite conclusion
 from it in the same sentence:
 
