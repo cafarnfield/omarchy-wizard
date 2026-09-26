@@ -462,6 +462,11 @@ Item {
   // request. oracle.py adds what it can read of the machine to this.
   // Soot in plain words, so a remark about her can be about what she is
   // actually doing rather than the mere fact of her existing.
+  // Sprites call them shape_duck and shape_frog; nobody says that out loud.
+  function shapeName() {
+    return catShape.replace("shape_", "")
+  }
+
   function catDoing() {
     if (!hasCat)
       return ""
@@ -470,7 +475,7 @@ Item {
     if (catAboard)
       return "in the boat with you"
     if (catShape !== "")
-      return "a " + catShape + ", which is your fault"
+      return "a " + shapeName() + ", which is your fault"
     if (catTask === "gift")
       return "carrying something over to you"
     if (catTask === "underfoot")
@@ -502,7 +507,7 @@ Item {
       land: landEvent,
       hasCat: hasCat,
       catNear: hasCat && Math.abs(catX - fx) < spriteW * 1.6,
-      catShape: catShape,
+      catShape: shapeName(),
       catDoing: catDoing(),
       deathHere: deathHere,
       holding: holding,
@@ -1084,7 +1089,7 @@ Item {
     catMood = "sit"
     catIdle = "sit"
     voice("transform", 3.2)
-    recall("turned Soot into a " + catShape + " by accident")
+    recall("turned Soot into a " + shapeName() + " by accident")
     spawn(16, catX + catW / 2, catFootY - catH / 2,
           [Sprites.PALETTE["C"], Sprites.PALETTE["A"], Sprites.PALETTE["L"]], 110, 0.8)
   }
