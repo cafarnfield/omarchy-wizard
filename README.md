@@ -228,12 +228,30 @@ considering it.
 He is held to one considered thought every two seconds, so a busy minute on the
 shoreline does not become a minute of continuous inference.
 
-### Death speaks for himself
+### Death speaks for himself, and they talk to each other
 
 Death has his own prompt, his own process and his own voice: an old
 professional with a list, unfailingly polite, here entirely because he is fond
 of the cat. Given Landis's prompt he grumbled about browser tabs, which is
 nobody's idea of Death.
+
+Each is shown the other's actual line and told to follow on from it, so the
+visits are exchanges rather than two monologues that happen to alternate:
+
+    DEATH : SOOT TOLERATES MY TOUCH MOST DAYS.
+    LANDIS: SHE TOLERATES ANYONE'S TOUCH.
+    DEATH : SOOT TOLERATES ONLY MY TOUCH.
+
+Landis's reply now waits for Death to have actually spoken. It used to be timed
+from the moment Death was *asked* for a line, so the answer was generally
+written before the thing it was answering existed.
+
+### Soot is in the prompt as what she is doing
+
+Not whether she is nearby: asleep on his chest, standing on his foot and
+refusing to move, walking off with his lantern, in the boat, stranded on the
+far shore watching him, or currently a squirrel and whose fault that is. A
+remark about the cat can then be about what the cat is actually up to.
 
 ### The register examples are not lines
 
