@@ -131,6 +131,14 @@ Item {
   property int voiceStamp: -1
   property int thinkPhase: 0
 
+  // Everything anyone has said this summoning, for the chat box to show. The
+  // bubble is a three-second thing on a tiny sprite; this is where a line goes
+  // to be read properly. Capped, because he is chatty and a session can run
+  // for days.
+  property var transcript: []
+  property int transcriptCap: 250
+  property bool chatOpen: false
+
   // --- the world he is standing in ----------------------------------------
   property var scene: null
   property string backgroundPath: ""
@@ -300,10 +308,15 @@ Item {
 
   function close() {
     opened = false
+    chatOpen = false
   }
 
   // Reachable as: omarchy-shell shell call landis.wizard say "SOMETHING"
-  function say(text, seconds) {
+  // `mode` is for callers inside this file: "replace" swaps the last thing he
+  // said rather than adding to it (a generated line taking over from the
+  // static one it improved on), "quiet" keeps it out of the transcript. The
+  // IPC entry point passes neither, so `say "HELLO"` behaves as it always did.
+  function say(text, seconds, mode) {
     const body = String(text || "").trim()
     if (body === "") {
       bubbleLines = []
@@ -313,7 +326,58 @@ Item {
     bubbleLines = Brain.wrap(body, 16)
     bubbleUntil = clock + (seconds > 0 ? seconds : 3.4)
     bubbleStamp += 1
+    if (mode !== "quiet")
+      logLine("landis", body, mode === "replace")
     return "ok"
+  }
+
+  // Snoring and thinking dots are things he does, not things he says, and a
+  // transcript full of "Z Z Z" is a transcript nobody reads.
+  function worthLogging(body) {
+    return !/^[.\sZ]*$/.test(body)
+  }
+
+  function logLine(who, text, replace) {
+    const body = String(text || "").trim()
+    if (body === "" || !worthLogging(body))
+      return
+    const now = new Date()
+    const stamp = ("0" + now.getHours()).slice(-2) + ":"
+                + ("0" + now.getMinutes()).slice(-2)
+    let next = transcript.slice()
+    // A generated line replaces the static one it was asked to improve on,
+    // but only if that is still the last thing in the log -- if he has said
+    // something else since, it is no longer the line being improved.
+    if (replace && next.length > 0 && next[next.length - 1].who === who)
+      next.pop()
+    next.push({ who: who, text: body, at: stamp })
+    while (next.length > transcriptCap)
+      next.shift()
+    transcript = next
+  }
+
+  // Reachable as: omarchy-shell shell call landis.wizard chat ""
+  function chat(arg) {
+    const want = String(arg || "").trim().toLowerCase()
+    if (want === "open" || want === "show")
+      chatOpen = true
+    else if (want === "close" || want === "hide")
+      chatOpen = false
+    else
+      chatOpen = !chatOpen
+    if (chatOpen)
+      chatBox.focusInput()
+    return chatOpen ? "open" : "closed"
+  }
+
+  // Reachable as: omarchy-shell shell call landis.wizard transcript ""
+  function transcriptText(arg) {
+    let out = []
+    for (let i = 0; i < transcript.length; i++) {
+      const line = transcript[i]
+      out.push(line.at + "  " + line.who.toUpperCase() + ": " + line.text)
+    }
+    return out.join("\n")
   }
 
   // Say the static line now, and ask the model for a better one.
@@ -357,7 +421,7 @@ Item {
     lastPhrase = body
     // Hold it for whatever is left of the original bubble, or long enough to
     // read a longer line, whichever is the greater.
-    say(body, Math.max(bubbleUntil - clock, 1.6 + body.length * 0.075))
+    say(body, Math.max(bubbleUntil - clock, 1.6 + body.length * 0.075), "replace")
   }
 
   // What he can see of his own circumstances, handed to the model with every
@@ -397,6 +461,7 @@ Item {
     }
     if (!mind.converse(body))
       return "busy"
+    logLine("you", body, false)
     // He attends to you: stops walking, abandons nothing, waits.
     if (mood === "walk")
       enterIdle(Brain.between(6, 9))
@@ -1219,7 +1284,9 @@ Item {
       structures: structures.length,
       lights: lights.length,
       background: backgroundPath.split("/").pop(),
-      ai: mind.describe()
+      ai: mind.describe(),
+      chatOpen: chatOpen,
+      transcript: transcript.length
     })
   }
 
@@ -1735,7 +1802,9 @@ Item {
         deathMood = "pet"
         deathClock = 0
         deathFor = Brain.between(9, 14)
-        deathLines = Brain.wrap(Brain.pick(Brain.DEATH_LINES, ""), 16)
+        const saying = Brain.pick(Brain.DEATH_LINES, "")
+        deathLines = Brain.wrap(saying, 16)
+        logLine("death", saying, false)
         deathSpeech.restart()
         if (Math.random() < 0.6)
           replyTimer.restart()
@@ -2296,6 +2365,23 @@ Item {
       root.lastPhrase = text
     }
     onReplyFailed: () => root.say(Brain.pick(Brain.NO_ORACLE, ""), 3.0)
+  }
+
+  // Somewhere his words stay long enough to be read, and somewhere to type
+  // back. A second layer surface: in front of your windows and able to take
+  // keyboard focus, which is everything his own surface must not be.
+  ChatBox {
+    id: chatBox
+
+    visible: root.opened && root.chatOpen && !root.leaving
+    screen: root.targetScreen
+    entries: root.transcript
+    thinking: mind.thinking
+    oracleReady: mind.ready
+    oracleDetail: mind.detail
+
+    onSubmitted: (text) => root.ask(text)
+    onDismissed: root.chatOpen = false
   }
 
   // Three dots, cycling, while he thinks about your question. A local model

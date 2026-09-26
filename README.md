@@ -160,19 +160,52 @@ of order.
 ### Talking to him
 
 ```bash
-omarchy-shell shell call landis.wizard ask "WHERE DOES SOOT GO"
+omarchy-shell shell call landis.wizard chat ""
 ```
 
-He stops, thinks about it visibly, and answers in the bubble. He remembers the
-last four exchanges, so you can follow a thread; `forget` clears it.
+That opens the chat box: a panel in the corner holding everything anyone has
+said this summoning, with somewhere to type back. He answers in his bubble as
+before, and the same words stay in the panel to be read at leisure.
 
-A keybinding worth having, which prompts you for the question:
+The bubble is right for `MIND THE CABLES.` and quite wrong for an answer to a
+real question -- five lines of 5x7 capitals on a three-second timer, gone
+before you have finished reading. That is what the panel is for.
+
+| | |
+|---|---|
+| **Type and press Return** | ask him something |
+| **Escape**, or the `×` | close it; he stays where he is |
+| **Scroll up** | it stops following the bottom until you scroll back down |
+
+Colour-coded by who is talking: purple for Landis, gold for you, and pale bone
+for Death. His own line is timestamped when he says it, so you can tell an
+answer from the remark he happened to make while you were reading.
+
+A keybinding worth having:
 
 ```lua
 o.bind("SUPER + ALT + A", "Ask the wizard",
-       "bash -c 'q=$(omarchy-menu-input \"Ask the wizard\" --width 520) && " ..
-       "omarchy-shell shell call landis.wizard ask \"$q\"'")
+  [[bash -c 'hyprctl layers -j | grep -q landis-wizard || omarchy-shell shell toggle landis.wizard "{}"; omarchy-shell shell call landis.wizard chat open']])
 ```
+
+It summons him first if he is not out, since there is nothing to chat to
+otherwise. A Lua long string (`[[ ]]`) keeps the nested quoting readable.
+
+You can still ask him a single question without the panel, and he will still
+answer in the bubble:
+
+```bash
+omarchy-shell shell call landis.wizard ask "WHERE DOES SOOT GO"
+```
+
+He remembers the last four exchanges either way, so you can follow a thread;
+`forget` clears it.
+
+The chat box is a second layer surface, on `top` and accepting keyboard focus
+on demand -- both of which the wizard's own surface must never do, since he
+lives on `bottom` and is meant to be part of the wallpaper. Focus is
+`OnDemand`, not `Exclusive`: click it to type, and it never holds your keyboard
+while it sits there.
 
 ### What he generates and what he does not
 
@@ -252,6 +285,8 @@ omarchy-shell shell call landis.wizard startLandEvent ""  # force a shore event
 omarchy-shell shell call landis.wizard ask "WHY THE HAT"  # put a question to him
 omarchy-shell shell call landis.wizard oracle ""          # is he thinking, and with what
 omarchy-shell shell call landis.wizard forget ""          # drop the conversation so far
+omarchy-shell shell call landis.wizard chat ""            # toggle the chat box (or: open / close)
+omarchy-shell shell call landis.wizard transcript ""      # everything said this summoning, as text
 ```
 
 `oracle` is the first thing to check when he is speaking off the list and you
