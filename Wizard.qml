@@ -129,6 +129,7 @@ Item {
   property int bubbleStamp: 0
   property int voiceSerial: -1
   property string voiceBeat: ""
+  property string lastDeathLine: ""    // what Death last said, for Landis to answer
   property real voiceFor: 3.2
   property real voiceUntil: 0
   property int thinkPhase: 0
@@ -422,15 +423,26 @@ Item {
     if (body === "" || !deathHere || deathMood !== "pet")
       return
     deathLines = Brain.wrap(body, 16)
+    lastDeathLine = body
     logLine("death", body, false)
     deathSpeech.restart()
+    // Only now is there something for Landis to answer. Starting this when
+    // Death was *asked* meant the reply was usually written before the line
+    // it was replying to existed.
+    if (Math.random() < 0.7)
+      replyTimer.restart()
   }
 
   function speakGenerated(beat, serial, text) {
     if (serial !== voiceSerial)
       return
     voiceSerial = -1
-    if (leaving || mood === "away" || deathLines.length > 0)
+    // Normally he holds his tongue while Death's bubble is up -- two speech
+    // bubbles at once is noise. Answering Death is the exception, since that
+    // is the entire point of it.
+    if (leaving || mood === "away")
+      return
+    if (deathLines.length > 0 && beat !== "death")
       return
     if (clock > voiceUntil)
       return
@@ -443,6 +455,39 @@ Item {
 
   // What he can see of his own circumstances, handed to the model with every
   // request. oracle.py adds what it can read of the machine to this.
+  // Soot in plain words, so a remark about her can be about what she is
+  // actually doing rather than the mere fact of her existing.
+  function catDoing() {
+    if (!hasCat)
+      return ""
+    if (catOnHim)
+      return "asleep on your chest"
+    if (catAboard)
+      return "in the boat with you"
+    if (catShape !== "")
+      return "a " + catShape + ", which is your fault"
+    if (catTask === "gift")
+      return "carrying something over to you"
+    if (catTask === "underfoot")
+      return "standing on your foot and will not move"
+    if (catTask === "perch")
+      return "climbing on you"
+    if (catTask === "crystal")
+      return "off inspecting a crystal"
+    if (catTask === "greet")
+      return "hurrying over to you"
+    if (catTask === "follow")
+      return "trailing after you"
+    if (dropped !== "")
+      return "walking off with your " + dropped
+    if (catStranded > 2)
+      return "stuck on the far shore, watching you"
+    if (Math.abs(catX - fx) < spriteW * 1.6)
+      return "right beside you, " + (catMood === "curl" ? "curled up asleep"
+                                                        : "sitting")
+    return "off somewhere"
+  }
+
   function aiContext() {
     return {
       mood: mood,
@@ -453,6 +498,7 @@ Item {
       hasCat: hasCat,
       catNear: hasCat && Math.abs(catX - fx) < spriteW * 1.6,
       catShape: catShape,
+      catDoing: catDoing(),
       deathHere: deathHere,
       holding: holding,
       inventory: inventory,
@@ -1818,9 +1864,7 @@ Item {
         deathMood = "pet"
         deathClock = 0
         deathFor = Brain.between(9, 14)
-        mind.requestDeath()
-        if (Math.random() < 0.6)
-          replyTimer.restart()
+        mind.requestDeath(lastPhrase)
       } else {
         const speed = walkSpeed * unit * 0.8
         deathX += Math.max(-speed * dt, Math.min(speed * dt, dx))
@@ -2340,7 +2384,8 @@ Item {
     interval: 2600
     onTriggered: {
       if (root.deathHere && root.mood !== "away")
-        root.voice("death", 3.2)
+        root.voice("death", 3.2, { heard: root.lastDeathLine,
+                                   heardFrom: "DEATH" })
     }
   }
 

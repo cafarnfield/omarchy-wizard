@@ -238,11 +238,13 @@ Item {
 
   // Death speaks in his own voice, from his own prompt, so he gets his own
   // process rather than queueing behind whatever Landis is thinking about.
-  function requestDeath() {
+  function requestDeath(heard) {
     if (!active || !ready || deathProc.running)
       return false
     deathProc.command = argsFor("beat", ["--ctx",
-      contextJson({ beat: "deathsays" })])
+      contextJson({ beat: "deathsays",
+                    heard: String(heard || ""),
+                    heardFrom: "LANDIS" })])
     deathProc.running = true
     return true
   }

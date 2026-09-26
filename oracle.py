@@ -500,11 +500,13 @@ def situation(ctx, facts, with_sense, beat=""):
         lines.append("- on the water: %s" % ctx["event"])
     if ctx.get("land"):
         lines.append("- ashore: %s" % ctx["land"])
-    if ctx.get("catNear"):
+    # What she is actually doing, not merely whether she is nearby. She can be
+    # walking off with his lantern or asleep on his chest, and a remark about
+    # her should know which.
+    if ctx.get("catDoing"):
+        lines.append("- Soot is %s" % ctx["catDoing"])
+    elif ctx.get("catNear"):
         lines.append("- Soot is right beside you")
-    if ctx.get("catShape"):
-        lines.append("- Soot is currently a %s, which is your fault"
-                     % ctx["catShape"])
     elif ctx.get("hasCat"):
         lines.append("- Soot is off somewhere")
     if ctx.get("deathHere"):
@@ -584,10 +586,12 @@ BEATS = {
     "droplost": "You have dropped something in the lake and it has sunk.",
 
     # --- Death ---------------------------------------------------------------
-    "death": "Death is standing here making conversation while he pets the"
-             " cat. Answer him.",
-    "deathsays": "You are making conversation with Landis while you pet his"
-                 " cat.",
+    "death": "Death is standing here petting your cat. Reply to what he has"
+             " just said -- actually reply to it, do not change the subject."
+             " Speak TO him, not about him: 'YOU SPOIL THAT CAT', never 'DEATH"
+             " SPOILS THAT CAT'.",
+    "deathsays": "You are petting Landis's cat and making conversation"
+                 " with him.",
 }
 
 # Beats spoken by someone other than Landis.
@@ -627,6 +631,13 @@ def prompt_for(mode, ctx, facts, with_sense, count):
         instruction += " The thing in question is a %s." % ctx["item"]
     if ctx.get("shape"):
         instruction += " It looks like it might be a %s." % ctx["shape"]
+    # The other one's actual words, so this is an exchange rather than two
+    # monologues that happen to alternate.
+    heard = clean(ctx.get("heard"), 120)
+    if heard:
+        instruction += (" %s has just said to you, out loud: '%s'. Your line"
+                        " must follow on from that."
+                        % (str(ctx.get("heardFrom") or "THEY"), heard))
     return [
         {"role": "system", "content": SPEAKERS.get(beat, PERSONA)},
         {"role": "user", "content":
