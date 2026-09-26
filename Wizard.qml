@@ -394,8 +394,19 @@ Item {
   // has just picked up, the shape he thinks he can make out.
   function voice(beat, seconds, extra) {
     const serial = mind.requestBeat(beat, extra)
-    if (serial < 0)
-      return false
+    if (serial < 0) {
+      // He is already thinking about something else, or was asked a moment
+      // ago. Rather than let the beat pass in silence, he spends a line from
+      // the pool -- still his own words, written by the model a minute ago
+      // instead of a second ago, just not about this exact moment. Dropping
+      // these outright made him noticeably quieter than he used to be.
+      const pooled = mind.take()
+      if (pooled === "")
+        return false
+      lastPhrase = pooled
+      say(pooled, seconds > 0 ? seconds : 3.2)
+      return true
+    }
     voiceSerial = serial
     voiceBeat = beat
     voiceFor = seconds > 0 ? seconds : 3.2

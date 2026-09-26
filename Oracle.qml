@@ -38,7 +38,7 @@ Item {
   property int timeoutSec: 20          // a single beat: he has already spoken
   property int askTimeoutSec: 45       // a question: worth waiting for
   property int poolTimeoutSec: 90      // several lines, entirely in background
-  property int poolTarget: 4           // ambient lines kept in hand
+  property int poolTarget: 6           // ambient lines kept in hand
 
   // --- state ---------------------------------------------------------------
   property bool ready: false           // daemon up, model pulled
