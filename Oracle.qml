@@ -35,7 +35,9 @@ Item {
   property string host: "127.0.0.1:11434"
   property string model: "llama3.2:3b"
   property bool senseMachine: true     // may he look at load, disk, battery
-  property int timeoutSec: 20
+  property int timeoutSec: 20          // a single beat: he has already spoken
+  property int askTimeoutSec: 45       // a question: worth waiting for
+  property int poolTimeoutSec: 90      // several lines, entirely in background
   property int poolTarget: 4           // ambient lines kept in hand
 
   // --- state ---------------------------------------------------------------
@@ -67,8 +69,10 @@ Item {
   ]
 
   function argsFor(mode, extra) {
+    const seconds = mode === "ask" ? askTimeoutSec
+      : (mode === "ambient" ? poolTimeoutSec : timeoutSec)
     let args = baseArgs.concat([mode, "--host", host, "--model", model,
-                                "--timeout", String(timeoutSec)])
+                                "--timeout", String(seconds)])
     if (!senseMachine)
       args.push("--no-sense")
     return extra ? args.concat(extra) : args
@@ -171,6 +175,9 @@ Item {
 
   Process {
     id: poolProc
+    stderr: StdioCollector {
+      onStreamFinished: oracle.noteError("pool", text)
+    }
     stdout: StdioCollector {
       onStreamFinished: {
         const lines = String(text || "").split("\n")
@@ -231,6 +238,9 @@ Item {
   // run prints nothing on stdout, so the two can never both fire.
   Process {
     id: beatProc
+    stderr: StdioCollector {
+      onStreamFinished: oracle.noteError("beat", text)
+    }
     stdout: StdioCollector {
       onStreamFinished: {
         const line = String(text || "").trim()
@@ -268,6 +278,9 @@ Item {
   Process {
     id: askProc
     property string question: ""
+    stderr: StdioCollector {
+      onStreamFinished: oracle.noteError("ask", text)
+    }
     stdout: StdioCollector {
       onStreamFinished: {
         const line = String(text || "").trim()
@@ -306,6 +319,18 @@ Item {
   // A daemon that has gone away mid-session looks exactly like one that was
   // never there, so after a few refusals he stops asking and lets the probe
   // timer decide when it is worth trying again.
+  // Keep the last thing that went wrong, so `oracle ""` can say why he is
+  // speaking off the list instead of leaving you to guess.
+  property string lastError: ""
+
+  function noteError(where, text) {
+    const body = String(text || "").trim().split("\n")[0]
+    if (body === "")
+      return
+    lastError = where + ": " + body
+    detail = lastError
+  }
+
   function noteFailure() {
     failures += 1
     if (failures >= 3) {
@@ -327,7 +352,8 @@ Item {
       thinking: thinking,
       spoken: served,
       turns: history.length / 2,
-      detail: detail
+      detail: detail,
+      lastError: lastError
     }
   }
 }
