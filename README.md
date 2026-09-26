@@ -208,11 +208,43 @@ omarchy-shell shell call landis.wizard ask "WHERE DOES SOOT GO"
 He remembers the last four exchanges either way, so you can follow a thread;
 `forget` clears it.
 
-The chat box is a second layer surface, on `top` and accepting keyboard focus
-on demand -- both of which the wizard's own surface must never do, since he
-lives on `bottom` and is meant to be part of the wallpaper. Focus is
-`OnDemand`, not `Exclusive`: click it to type, and it never holds your keyboard
-while it sits there.
+### Where the chat box lives
+
+By default it is an **ordinary window**, not a layer surface: you click it and
+type into it, and it drops behind whatever you focus next, like any other
+application.
+
+That is deliberate. Layer shell has four layers and no notion of ordinary
+stacking, so as a layer surface it is either permanently in front of your
+windows or permanently behind them, and behind them it cannot be given
+keyboard focus at all. Neither is what you want from something you talk to.
+
+Being an ordinary window means being treated as one, so a tiling layout will
+tile it across half the screen unless you say otherwise. In
+`~/.config/hypr/looknfeel.lua`:
+
+```lua
+o.window({ class = "^org\\.quickshell$", title = "^Landis$" }, { float = true })
+o.window({ class = "^org\\.quickshell$", title = "^Landis$" }, { size = { 430, 560 } })
+o.window({ class = "^org\\.quickshell$", title = "^Landis$" },
+  { move = { "(monitor_w-window_w-16)", "16" } })
+```
+
+Matched on title as well as class, so it does not catch the bar or any other
+Quickshell window.
+
+The layer-surface versions are still there via `chatLayer`:
+
+| `chatLayer` | |
+|---|---|
+| `"window"` | default; an ordinary window, typeable, normal stacking |
+| `"bottom"` | on the wallpaper beside him, behind everything, **read-only** |
+| `"top"` | a layer surface permanently in front of your windows |
+| `"overlay"` | above even fullscreen |
+
+On `bottom` the input field hides itself and the header says `read only`,
+because a bottom surface cannot be given keyboard focus and a field that
+silently refuses to accept typing is worse than no field.
 
 ### The pause before he speaks
 
@@ -387,6 +419,8 @@ omarchy-shell shell toggle landis.wizard '{"scale":5,"speed":40,"cat":false}'
 | `model` | `"llama3.2:3b"` | which Ollama model to borrow it from |
 | `aiHost` | `"127.0.0.1:11434"` | where the Ollama daemon is |
 | `sense` | `true` | may he notice load, disk, battery, open windows |
+| `chatLayer` | `"window"` | `window`, `bottom`, `top` or `overlay` |
+| `learn` | `false` | may he form opinions about you and write them down |
 
 `layer: "top"` puts him in front of your windows. He then draws over fullscreen
 games too, and his terrain-following only reads correctly against a visible
